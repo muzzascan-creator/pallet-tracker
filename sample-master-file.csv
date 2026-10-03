@@ -1,0 +1,9 @@
+Customer Code,Customer Name,Address,Phone,Email,Opening Balance
+C1001,Harbour Fresh Produce,12 Wharf Rd Port Melbourne,03 9000 1001,orders@harbourfresh.example,24
+C1002,Greenfield Grocers,88 High St Northcote,03 9000 1002,accounts@greenfield.example,0
+C1003,Sunrise Bakery,4 Mill Lane Brunswick,03 9000 1003,,12
+C1004,Bayside Beverages,210 Beach Rd Mentone,03 9000 1004,dock@baysidebev.example,40
+C1005,Metro Meats,55 Industrial Dr Dandenong,03 9000 1005,,6
+C1006,Northern Hardware,7 Factory St Thomastown,03 9000 1006,,0
+C1007,Coastal Dairy Co,301 Princes Hwy Geelong,03 9000 1007,logistics@coastaldairy.example,18
+C1008,Valley Fruit Packers,19 Orchard Rd Shepparton,03 9000 1008,,33

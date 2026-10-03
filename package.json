@@ -1,0 +1,12 @@
+{
+  "name": "pallet-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Track pallets owed by customers: operator scanning, admin dashboard, reports",
+  "main": "server.js",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "demo-data": "node --disable-warning=ExperimentalWarning seed-demo.js"
+  }
+}

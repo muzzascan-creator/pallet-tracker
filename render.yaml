@@ -1,0 +1,21 @@
+# Render Blueprint: one web service with a persistent disk for the database.
+services:
+  - type: web
+    name: pallet-tracker
+    runtime: node
+    plan: starter            # persistent disks need a paid plan
+    region: singapore        # closest Render region to Sydney
+    buildCommand: "true"     # no dependencies to install
+    startCommand: npm start
+    healthCheckPath: /icon.svg
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATA_DIR
+        value: /var/data
+      - key: ADMIN_PASSWORD
+        generateValue: true  # first admin password; shown under Environment in Render
+    disk:
+      name: pallet-data
+      mountPath: /var/data
+      sizeGB: 1
