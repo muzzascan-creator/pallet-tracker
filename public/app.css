@@ -182,3 +182,18 @@ th.sortable:hover { color: var(--text); }
 th.sortable[data-dir="asc"]::after { content: " ▲"; }
 th.sortable[data-dir="desc"]::after { content: " ▼"; }
 th.sortable[data-dir="asc"], th.sortable[data-dir="desc"] { color: var(--brand); }
+
+/* scan screen: Delivering above Picking up, big touch targets */
+.steppers { grid-template-columns: 1fr; gap: 12px; }
+.stepper { padding: 12px; }
+.stepper .t { font-size: 1.35rem; margin-bottom: 10px; }
+.stepper .ctl { grid-template-columns: 76px minmax(0, 1fr) 76px; gap: 10px; }
+.stepper .ctl button { height: 72px; font-size: 2.4rem; font-weight: 700; line-height: 1; }
+.stepper .ctl input { height: 72px; font-size: 2.2rem; }
+@media (max-width: 420px) {
+  .steppers { gap: 10px; }
+  .stepper { padding: 10px; }
+  .stepper .ctl { grid-template-columns: 72px minmax(0, 1fr) 72px; gap: 8px; }
+  .stepper .ctl button { height: 68px; }
+}
+#save-move { min-height: 64px; font-size: 1.35rem; }
