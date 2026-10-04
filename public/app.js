@@ -596,7 +596,7 @@ async function pageEntries() {
       <label class="grow-0" style="display:flex;gap:6px;align-items:center;margin:0 0 12px"><input type="checkbox" name="voided" style="width:auto;min-height:0"> Include cancelled</label>
     </form></div>
     <div class="card"><div id="e-sum" class="small muted" style="margin-bottom:8px"></div><div class="table-wrap"><table>
-      <thead><tr><th class="sortable" data-sort="created_at">Date / time</th><th class="sortable" data-sort="user_name">User</th><th class="sortable" data-sort="customer_name">Customer</th><th class="sortable" data-sort="type">Type</th><th class="num sortable" data-sort="qty">Pallets</th><th class="num sortable" data-sort="delta">Balance effect</th><th>Reference</th><th>Note</th><th class="no-print"></th></tr></thead>
+      <thead><tr><th class="sortable" data-sort="created_at">Date / time</th><th class="sortable" data-sort="user_name">User</th><th class="sortable" data-sort="customer_name">Customer</th><th class="sortable" data-sort="type">Type</th><th class="num sortable" data-sort="qty">Pallets</th><th class="num sortable" data-sort="delta">Balance effect</th><th>Note</th><th class="no-print"></th></tr></thead>
       <tbody id="etable"></tbody></table></div></div>`;
   let rows = [], sortKey = 'created_at', sortDir = -1;
   const sortVal = (m, k) => k === 'qty' ? Math.abs(m.qty) : k === 'type' ? ({ delivered: 'Delivered', collected: 'Picked up', adjust: 'Adjustment' }[m.type]) : m[k];
@@ -618,11 +618,11 @@ async function pageEntries() {
     sortRows();
     $$('th.sortable').forEach((th) => th.dataset.sort && (th.dataset.dir = th.dataset.sort === sortKey ? (sortDir > 0 ? 'asc' : 'desc') : ''));
     $('#etable').innerHTML = rows.map((m) => `
-      <tr class="${m.voided_at ? 'voided' : ''}"><td class="small">${dt(m.created_at)}</td><td class="small">${esc(m.user_name)}</td><td>${esc(m.customer_name)}</td><td>${typePill(m)}</td>
-        <td class="num">${fmt(Math.abs(m.qty))}</td><td class="num">${signed(m.delta)}</td><td>${esc(m.reference)}</td>
+      <tr class="${m.voided_at ? 'voided' : ''}"><td class="small">${dt(m.created_at)}</td><td class="user-cell">${esc(m.user_name)}</td><td>${esc(m.customer_name)}</td><td>${typePill(m)}</td>
+        <td class="num">${fmt(Math.abs(m.qty))}</td><td class="num">${signed(m.delta)}</td>
         <td class="small">${esc(m.note)}${m.voided_at ? `<br><span class="muted">Cancelled by ${esc(m.voided_by_name)}: ${esc(m.void_reason)}</span>` : ''}</td>
         <td class="no-print">${m.voided_at ? '' : `<button class="btn sm danger" data-void="${m.id}">Cancel</button>`}</td></tr>`).join('')
-      || '<tr><td colspan="9" class="muted">No entries for these filters.</td></tr>';
+      || '<tr><td colspan="8" class="muted">No entries for these filters.</td></tr>';
     $$('[data-void]').forEach((b) => b.onclick = async () => {
       const reason = prompt('Reason for cancelling this entry?'); if (reason === null) return;
       try { await api('POST', `/api/movements/${b.dataset.void}/void`, { reason }); toast('Entry cancelled'); load(); } catch (err) { alert(err.message); }
@@ -655,7 +655,7 @@ async function pageEntries() {
   $('#e-csv').onclick = () => downloadCSV('pallet-entries.csv', [
     { label: 'Date', value: (m) => new Date(m.created_at).toLocaleString([], { hour12: true }) }, { label: 'Entered by', value: 'user_name' }, { label: 'Customer code', value: 'customer_code' }, { label: 'Customer', value: 'customer_name' },
     { label: 'Type', value: (m) => ({ delivered: 'Delivered', collected: 'Picked up', adjust: 'Adjustment' }[m.type]) }, { label: 'Pallets', value: (m) => Math.abs(m.qty) },
-    { label: 'Balance effect', value: 'delta' }, { label: 'Reference', value: 'reference' }, { label: 'Note', value: 'note' },
+    { label: 'Balance effect', value: 'delta' }, { label: 'Note', value: 'note' },
     { label: 'Cancelled', value: (m) => m.voided_at ? `Yes: ${m.void_reason}` : '' }], rows);
   load();
 }

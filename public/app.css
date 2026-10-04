@@ -200,3 +200,4 @@ th.sortable[data-dir="asc"], th.sortable[data-dir="desc"] { color: var(--brand);
 .results.readonly li { cursor: default; }
 .results.readonly li:hover { background: none; }
 .btn.primary.danger-fill { background: var(--owe); border-color: var(--owe); color: #fff; }
+td.user-cell { font-size: calc(.85rem + 2pt); font-weight: 700; }
