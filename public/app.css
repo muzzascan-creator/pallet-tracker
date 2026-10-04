@@ -159,3 +159,17 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 }
 .entry.voided > div:first-child { opacity: .55; text-decoration: line-through; }
 .grid-2 > .card { align-self: start; }
+
+/* phone: keep the app locked to the screen width, no sideways sliding or zoom-on-tap */
+html, body { overflow-x: hidden; max-width: 100%; touch-action: manipulation; }
+input, select, textarea { font-size: 16px; }
+.stepper .ctl { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+.stepper .ctl input { min-width: 0; padding: 6px 2px; }
+@media (max-width: 420px) {
+  main { padding: 12px; }
+  .card { padding: 12px; }
+  .steppers { gap: 8px; }
+  .stepper { padding: 8px 6px; }
+  .stepper .ctl { grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 4px; }
+  .stepper .ctl button { height: 44px; }
+}
