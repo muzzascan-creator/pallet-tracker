@@ -143,7 +143,11 @@ const PAGES = {
 };
 const ADMIN_ONLY = new Set(['dashboard', 'customers', 'entries', 'reports', 'users', 'labels']);
 
+// Admin dashboard reloads itself every 30 seconds while it is on screen
+let dashTimer = null;
+const DASH_REFRESH_MS = 30000;
 function route() {
+  clearInterval(dashTimer); dashTimer = null;
   if (!me) return showLogin();
   stopScanner();
   if (me.mustChangePassword) { renderNav(''); return showChangePassword(true); }
@@ -152,6 +156,10 @@ function route() {
   renderNav(page);
   view.className = ['scan', 'mine', 'owing', 'password'].includes(page) ? 'narrow' : '';
   PAGES[page]();
+  if (page === 'dashboard') dashTimer = setInterval(() => {
+    if (!me || document.hidden || modal.open || !location.hash.startsWith('#/dashboard')) return;
+    pageDashboard(true).catch(() => {});
+  }, DASH_REFRESH_MS);
 }
 window.addEventListener('hashchange', route);
 
@@ -342,8 +350,9 @@ async function pageMine() {
 }
 
 // ---------- admin: dashboard ----------
-async function pageDashboard() {
-  view.innerHTML = '<p class="muted">Loading…</p>';
+async function pageDashboard(refresh) {
+  if (!refresh) view.innerHTML = '<p class="muted">Loading…</p>';
+  const listScroll = refresh && $('.bal-list') ? $('.bal-list').scrollTop : 0;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const [s, { customers }] = await Promise.all([
     api('GET', '/api/admin/summary?since=' + encodeURIComponent(today.toISOString())),
@@ -356,7 +365,7 @@ async function pageDashboard() {
           <div class="b" data-id="${c.id}" title="${esc(c.name)}: ${fmt(Math.abs(c.balance))} pallets ${word}">
             <span class="name">${esc(c.name)}</span><span class="track"><div class="fill ${cls}" style="width:${(Math.abs(c.balance) / max) * 100}%"></div></span><span class="num bal ${balCls(c.balance)}"><b>${fmt(c.balance)}</b></span></div>`).join('')}</div>`;
   view.innerHTML = `
-    <div class="toolbar"><h1 style="margin:0">Dashboard</h1><span class="spacer"></span><a class="btn primary" href="#/scan">📷 Scan / record</a></div>
+    <div class="toolbar"><h1 style="margin:0">Dashboard</h1><span class="small muted">Updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })} · refreshes every 30 seconds</span><span class="spacer"></span><a class="btn primary" href="#/scan">📷 Scan / record</a></div>
     <div class="tiles">
       <div class="tile"><div class="k">Pallets owed to you</div><div class="v">${fmt(s.total_owed)}</div><div class="s">across all customers</div></div>
       <div class="tile"><div class="k">Customers owing</div><div class="v">${fmt(s.owing)}</div><div class="s">of ${fmt(s.customers)} active</div></div>
@@ -379,6 +388,7 @@ async function pageDashboard() {
     <div class="entry ${m.voided_at ? 'voided' : ''}"><div>${typePill(m)} <b>${fmt(m.qty)}</b> · ${esc(m.customer_name)}${m.voided_at ? ' <span class="pill">cancelled</span>' : ''}
       <div class="small muted">${dt(m.created_at)} · ${esc(m.user_name)}${m.reference ? ' · ' + esc(m.reference) : ''}</div></div></div>`).join('') : '<p class="muted">Nothing yet.</p>';
   $$('.bars .b').forEach((b) => b.onclick = () => customerModal(b.dataset.id));
+  if (listScroll && $('.bal-list')) $('.bal-list').scrollTop = listScroll;
 }
 
 // ---------- admin: customers ----------
