@@ -90,4 +90,19 @@ function ensureAdmin() {
   return password;
 }
 
-module.exports = { db, hashPassword, verifyPassword, ensureAdmin };
+// Forgotten admin password: set ADMIN_RESET_PASSWORD on the host and restart. The 'admin' login
+// gets that password (applied once per value), then the variable should be removed again.
+function applyAdminReset() {
+  const pw = process.env.ADMIN_RESET_PASSWORD;
+  if (!pw) return false;
+  if (pw.length < 6) { console.warn('ADMIN_RESET_PASSWORD must be at least 6 characters; ignored.'); return false; }
+  const marker = path.join(DATA_DIR, '.admin-reset');
+  const tag = crypto.createHash('sha256').update(pw).digest('hex');
+  if (fs.existsSync(marker) && fs.readFileSync(marker, 'utf8') === tag) return false;
+  const r = db.prepare(`UPDATE users SET password_hash = ?, must_change_password = 0, active = 1 WHERE username = 'admin'`).run(hashPassword(pw));
+  db.prepare(`DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE username = 'admin')`).run();
+  fs.writeFileSync(marker, tag);
+  return r.changes > 0;
+}
+
+module.exports = { db, hashPassword, verifyPassword, ensureAdmin, applyAdminReset };

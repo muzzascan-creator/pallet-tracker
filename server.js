@@ -5,7 +5,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { db, hashPassword, verifyPassword, ensureAdmin } = require('./db');
+const { db, hashPassword, verifyPassword, ensureAdmin, applyAdminReset } = require('./db');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -438,6 +438,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 const firstPassword = ensureAdmin();
+if (applyAdminReset()) console.log('Admin password reset from ADMIN_RESET_PASSWORD. Remove that setting now.');
 server.listen(PORT, () => {
   console.log(`Pallet tracker running on http://localhost:${PORT}`);
   if (firstPassword) console.log(`First run: created login "admin" with password "${firstPassword}" (you will be asked to change it).`);

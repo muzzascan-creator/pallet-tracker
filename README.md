@@ -16,7 +16,7 @@ npm run demo-data         # optional: sample customers + operators dave/sam (pas
 First start creates login `admin` / `admin` (or `ADMIN_PASSWORD` env var); you're asked to change it.
 Data lives in `data/pallets.db` (one SQLite file). Back up that file to back up everything.
 
-Settings (env vars): `PORT`, `DATA_DIR`, `ADMIN_PASSWORD` (first run only).
+Settings (env vars): `PORT`, `DATA_DIR`, `ADMIN_PASSWORD` (first run only), `ADMIN_RESET_PASSWORD` (forgotten admin password: set it, restart, log in as admin with it, then remove it).
 
 ## Phone camera
 
