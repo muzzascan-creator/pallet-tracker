@@ -278,7 +278,8 @@ function showCustomer(c, recent, savedIds) {
     try {
       const r = await api('POST', '/api/movements', f);
       toast(`Saved. ${r.customer.name} ${balanceText(r.customer.balance)}.`, 4000);
-      showCustomer(r.customer, r.recent, r.ids);
+      if (me.role === 'admin') showCustomer(r.customer, r.recent, r.ids);
+      else { pageScan(); window.scrollTo({ top: 0 }); } // drivers go straight back to a fresh scan screen
     } catch (err) { $('.err', form).textContent = err.message; busy($('#save-move'), false); }
   };
 }
