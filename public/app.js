@@ -332,12 +332,8 @@ async function pageOwing() {
     $('#owing').className = '';
     $('#owing').innerHTML = rows.length ? `
       <p class="small muted" style="margin:0 0 4px">${rows.length} customers · owed to you <b class="bal pos">${fmt(owed)}</b>${owe ? ` · you owe <b class="bal neg">${fmt(owe)}</b>` : ''}</p>
-      <ul class="results">${rows.map((c) => `<li data-id="${c.id}"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}" style="font-size:1.15rem">${fmt(c.balance)}</span></li>`).join('')}</ul>`
+      <ul class="results readonly">${rows.map((c) => `<li><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}" style="font-size:1.15rem">${fmt(c.balance)}</span></li>`).join('')}</ul>`
       : `<p class="muted">${q ? 'No customers match.' : 'No outstanding pallets right now.'}</p>`;
-    $$('#owing li[data-id]').forEach((li) => li.onclick = async () => {
-      const r = await api('GET', '/api/customers/' + li.dataset.id);
-      history.pushState(null, '', '#/scan'); renderNav('scan'); pageScan(r);
-    });
   };
   $('#oq').oninput = draw;
   draw();

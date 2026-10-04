@@ -197,3 +197,5 @@ th.sortable[data-dir="asc"], th.sortable[data-dir="desc"] { color: var(--brand);
   .stepper .ctl button { height: 68px; }
 }
 #save-move { min-height: 64px; font-size: 1.35rem; }
+.results.readonly li { cursor: default; }
+.results.readonly li:hover { background: none; }
