@@ -368,23 +368,31 @@ async function pageCustomers() {
     </div>
     <div class="card">
       <div class="row" style="margin-bottom:12px"><div><input id="cq" placeholder="Search name or code"></div>
+        <button class="btn grow-0" id="cowe" aria-pressed="false">Only customers owing</button>
         <label class="grow-0" style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="call" style="width:auto;min-height:0"> Show inactive</label></div>
       <div class="table-wrap"><table><thead><tr><th>Code</th><th>Customer</th><th class="num">Owed to you</th><th class="num">Delivered</th><th class="num">Picked up</th><th>Last activity</th></tr></thead>
         <tbody id="ctable"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody><tfoot id="cfoot"></tfoot></table></div>
     </div>`;
-  let rows = [];
+  let rows = [], owingOnly = false;
   const load = async () => {
     const r = await api('GET', `/api/customers?q=${encodeURIComponent($('#cq').value.trim())}&all=${$('#call').checked ? 1 : 0}`);
-    rows = r.customers;
+    rows = owingOnly ? r.customers.filter((c) => c.balance > 0) : r.customers;
     $('#ctable').innerHTML = rows.length ? rows.map((c) => `
       <tr class="click" data-id="${c.id}"><td>${esc(c.code)}</td><td>${esc(c.name)}${c.active ? '' : ' <span class="pill">inactive</span>'}</td>
         ${balCell(c.balance)}<td class="num">${fmt(c.total_delivered)}</td><td class="num">${fmt(c.total_collected)}</td><td class="small muted">${dt(c.last_activity, false)}</td></tr>`).join('')
-      : '<tr><td colspan="6" class="muted">No customers yet. Add one or import your master file.</td></tr>';
+      : `<tr><td colspan="6" class="muted">${owingOnly ? 'No customers owe you pallets right now.' : 'No customers yet. Add one or import your master file.'}</td></tr>`;
     $('#cfoot').innerHTML = rows.length ? `<tr><td></td><td>${rows.length} customers</td>${balCell(rows.reduce((a, c) => a + c.balance, 0))}<td></td><td></td><td></td></tr>` : '';
     $$('#ctable tr[data-id]').forEach((tr) => tr.onclick = () => customerModal(tr.dataset.id, load));
   };
   let t; $('#cq').oninput = () => { clearTimeout(t); t = setTimeout(load, 200); };
   $('#call').onchange = load;
+  $('#cowe').onclick = () => {
+    owingOnly = !owingOnly;
+    $('#cowe').classList.toggle('primary', owingOnly);
+    $('#cowe').setAttribute('aria-pressed', owingOnly);
+    $('#cowe').textContent = owingOnly ? 'Show all customers' : 'Only customers owing';
+    load();
+  };
   $('#add-cust').onclick = () => customerForm(null, load);
   $('#import').onclick = () => importDialog(load);
   $('#exp').onclick = () => downloadCSV('customer-balances.csv', [
