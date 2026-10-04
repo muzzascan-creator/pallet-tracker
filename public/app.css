@@ -173,3 +173,7 @@ input, select, textarea { font-size: 16px; }
   .stepper .ctl { grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 4px; }
   .stepper .ctl button { height: 44px; }
 }
+.bars .fill.credit { background: var(--credit); }
+.bal-list { max-height: 460px; overflow-y: auto; padding-right: 4px; }
+.bal-h { font-size: .85rem; color: var(--muted); margin: 4px 0 8px; }
+.bal-h:not(:first-child) { margin-top: 16px; }

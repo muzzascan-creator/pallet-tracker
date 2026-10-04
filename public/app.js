@@ -329,8 +329,12 @@ async function pageDashboard() {
     api('GET', '/api/admin/summary?since=' + encodeURIComponent(today.toISOString())),
     api('GET', '/api/customers'),
   ]);
-  const top = customers.filter((c) => c.balance > 0).slice(0, 10);
-  const max = Math.max(1, ...top.map((c) => c.balance));
+  const owesYou = customers.filter((c) => c.balance > 0).sort((a, b) => b.balance - a.balance);
+  const youOwe = customers.filter((c) => c.balance < 0).sort((a, b) => a.balance - b.balance);
+  const max = Math.max(1, ...owesYou.map((c) => c.balance), ...youOwe.map((c) => -c.balance));
+  const barRows = (list, cls, word) => `<div class="bars">${list.map((c) => `
+          <div class="b" data-id="${c.id}" title="${esc(c.name)}: ${fmt(Math.abs(c.balance))} pallets ${word}">
+            <span class="name">${esc(c.name)}</span><span class="track"><div class="fill ${cls}" style="width:${(Math.abs(c.balance) / max) * 100}%"></div></span><span class="num bal ${balCls(c.balance)}"><b>${fmt(c.balance)}</b></span></div>`).join('')}</div>`;
   view.innerHTML = `
     <div class="toolbar"><h1 style="margin:0">Dashboard</h1><span class="spacer"></span><a class="btn primary" href="#/scan">📷 Scan / record</a></div>
     <div class="tiles">
@@ -340,11 +344,12 @@ async function pageDashboard() {
       <div class="tile"><div class="k">Picked up today</div><div class="v">${fmt(s.collected_today)}</div><div class="s">pallets back</div></div>
     </div>
     <div class="grid-2">
-      <div class="card"><h2>Who owes the most</h2>
-        ${top.length ? `<div class="bars">${top.map((c) => `
-          <div class="b" data-id="${c.id}" title="${esc(c.name)}: ${fmt(c.balance)} pallets owed">
-            <span class="name">${esc(c.name)}</span><span class="track"><div class="fill" style="width:${(c.balance / max) * 100}%"></div></span><span class="num"><b>${fmt(c.balance)}</b></span></div>`).join('')}</div>
-          <p class="small"><a href="#/customers">All customer balances →</a></p>` : '<p class="muted">Nobody owes you pallets right now.</p>'}
+      <div class="card"><h2>Outstanding balances</h2>
+        ${owesYou.length || youOwe.length ? `<div class="bal-list">
+          ${owesYou.length ? `<h3 class="bal-h">Customers who owe you (${owesYou.length})</h3>${barRows(owesYou, '', 'owed to you')}` : ''}
+          ${youOwe.length ? `<h3 class="bal-h">Customers you owe (${youOwe.length})</h3>${barRows(youOwe, 'credit', 'you owe them')}` : ''}
+          </div>
+          <p class="small"><a href="#/customers">All customer balances →</a></p>` : '<p class="muted">No outstanding balances right now.</p>'}
       </div>
       <div class="card"><h2>Latest entries</h2><div id="dash-recent"></div>
         <p class="small"><a href="#/entries">All entries →</a></p></div>
