@@ -248,7 +248,7 @@ function showCustomer(c, recent, savedIds) {
         <button class="btn primary big" id="save-move">Save</button>
       </form>` : '<p class="err">This customer is marked inactive. Ask an admin.</p>'}
     </div>
-    <div class="card"><h3>Recent for this customer</h3>${entryList(recent, true)}</div>`;
+    ${me.role === 'admin' ? `<div class="card"><h3>Recent for this customer</h3>${entryList(recent, true)}</div>` : ''}`;
   box.scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('#clear-cust').onclick = () => { box.innerHTML = ''; window.scrollTo({ top: 0, behavior: 'smooth' }); };
   bindUndo(box, () => loadCustomer(c.id));
