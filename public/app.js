@@ -244,10 +244,6 @@ function showCustomer(c, recent, savedIds) {
           ${stepper('collected', 'Picking up', 'c')}
         </div>
         <div class="after" id="after"></div>
-        <div class="row">
-          <div class="field"><label>Docket / reference</label><input name="reference" maxlength="100" autocomplete="off"></div>
-        </div>
-        <div class="field"><label>Note (optional)</label><input name="note" maxlength="500" autocomplete="off"></div>
         <div class="err"></div>
         <button class="btn primary big" id="save-move">Save</button>
       </form>` : '<p class="err">This customer is marked inactive. Ask an admin.</p>'}
