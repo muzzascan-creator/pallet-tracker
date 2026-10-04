@@ -296,19 +296,6 @@ route('POST', '/api/admin/customers/import', { auth: 'admin' }, async (req, res,
 });
 
 // Admin balance correction (e.g. stocktake). qty is signed: + means customer owes more.
-// Start over: delete every entry so all balances return to zero. Customers and users are kept.
-// A copy of the deleted entries is written to the data folder first, in case they are ever needed.
-route('POST', '/api/admin/clear-entries', { auth: 'admin' }, async (req, res, { user }) => {
-  const { confirm } = await readJson(req);
-  if (String(confirm || '').trim().toUpperCase() !== 'CLEAR') throw bad('Type CLEAR to confirm');
-  const rows = db.prepare('SELECT * FROM movements ORDER BY id').all();
-  const file = path.join(DATA_DIR, `cleared-entries-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
-  fs.writeFileSync(file, JSON.stringify({ cleared_by: user.username, cleared_at: new Date().toISOString(), movements: rows }));
-  db.prepare('DELETE FROM movements').run();
-  console.log(`All entries cleared by ${user.username}: ${rows.length} removed, copy saved to ${file}`);
-  send(res, 200, { ok: true, removed: rows.length });
-});
-
 route('POST', '/api/admin/adjust', { auth: 'admin' }, async (req, res, { user }) => {
   const b = await readJson(req);
   const id = Number(b.customer_id);
