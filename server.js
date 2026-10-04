@@ -1,6 +1,6 @@
 // Pallet tracking server. Plain Node (22.13+), no npm packages required.
 //   node server.js            -> http://localhost:3000
-// Env: PORT, DATA_DIR, ADMIN_PASSWORD (first run only), UNDO_MINUTES
+// Env: PORT, DATA_DIR, ADMIN_PASSWORD (first run only)
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -10,7 +10,6 @@ const { db, hashPassword, verifyPassword, ensureAdmin } = require('./db');
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const SESSION_DAYS = 14;
-const UNDO_MINUTES = Number(process.env.UNDO_MINUTES) || 30; // operators may undo their own entry for this long
 const MAX_QTY = 100000;
 
 // ---------- helpers ----------
@@ -144,7 +143,7 @@ route('POST', '/api/logout', { auth: 'none' }, async (req, res) => {
 
 route('GET', '/api/me', (req, res, { user }) => {
   const { token, ...u } = user;
-  send(res, 200, { user: u, undoMinutes: UNDO_MINUTES });
+  send(res, 200, { user: u });
 });
 
 route('POST', '/api/me/password', async (req, res, { user }) => {
@@ -213,12 +212,9 @@ route('POST', '/api/movements/:id/void', async (req, res, { user, params }) => {
   const m = db.prepare('SELECT * FROM movements WHERE id = ?').get(Number(params.id));
   if (!m) throw new HttpError(404, 'Entry not found');
   if (m.voided_at) throw bad('Entry is already cancelled');
-  if (user.role !== 'admin') {
-    const ageMin = (Date.now() - Date.parse(m.created_at)) / 60000;
-    if (m.user_id !== user.id || ageMin > UNDO_MINUTES) throw new HttpError(403, `You can only undo your own entries within ${UNDO_MINUTES} minutes. Ask an admin.`);
-  }
+  if (user.role !== 'admin') throw new HttpError(403, 'Only an admin can cancel entries.');
   db.prepare(`UPDATE movements SET voided_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), voided_by = ?, void_reason = ? WHERE id = ?`)
-    .run(user.id, str(reason, 200) || (user.role === 'admin' ? 'Cancelled by admin' : 'Undone by operator'), m.id);
+    .run(user.id, str(reason, 200) || 'Cancelled by admin', m.id);
   send(res, 200, { ok: true, customer: customerWithBalance(m.customer_id) });
 });
 

@@ -7,7 +7,7 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => Number(n || 0).toLocaleString();
 const view = $('#view');
-let me = null, undoMinutes = 30;
+let me = null;
 
 async function api(method, url, body) {
   const res = await fetch(url, {
@@ -156,7 +156,7 @@ function route() {
 window.addEventListener('hashchange', route);
 
 async function boot() {
-  try { const r = await api('GET', '/api/me'); me = r.user; undoMinutes = r.undoMinutes; }
+  try { const r = await api('GET', '/api/me'); me = r.user; }
   catch { me = null; }
   route();
 }
@@ -237,7 +237,7 @@ function showCustomer(c, recent, savedIds) {
       <div class="balance-box ${balCls(c.balance)}"><div class="n">${fmt(c.balance)}</div><div class="l">${c.balance === 0 ? 'All square, nothing owed' : c.balance > 0 ? 'pallets owed to you' : 'pallets you owe them'}</div></div>
       ${savedIds ? `
       <p style="text-align:center;font-weight:600">✓ Saved</p>
-      <div class="row"><button class="btn" id="undo-save">Undo this save</button><button class="btn primary" id="next-cust">Next customer</button></div>` : c.active ? `
+      <div class="row">${me.role === 'admin' ? '<button class="btn" id="undo-save">Undo this save</button>' : ''}<button class="btn primary" id="next-cust">Next customer</button></div>` : c.active ? `
       <form id="move">
         <div class="steppers">
           ${stepper('delivered', 'Delivering', 'd')}
@@ -258,7 +258,7 @@ function showCustomer(c, recent, savedIds) {
   bindUndo(box, () => loadCustomer(c.id));
   if (savedIds) {
     $('#next-cust').onclick = () => { box.innerHTML = ''; window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    $('#undo-save').onclick = async () => {
+    if ($('#undo-save')) $('#undo-save').onclick = async () => {
       try { for (const id of savedIds) await api('POST', `/api/movements/${id}/void`, {}); toast('Save undone'); loadCustomer(c.id); }
       catch (err) { alert(err.message); }
     };
@@ -294,7 +294,7 @@ const stepper = (name, title, cls) => `
       <button type="button" data-step="1" aria-label="plus one">+</button></div></div>`;
 
 function canUndo(m) {
-  return !m.voided_at && m.type !== 'adjust' && (me.role === 'admin' || (m.user_id === me.id && Date.now() - Date.parse(m.created_at) < undoMinutes * 60000));
+  return !m.voided_at && m.type !== 'adjust' && me.role === 'admin';
 }
 function entryList(rows, showUser, allowUndo = true) {
   if (!rows.length) return '<p class="muted">Nothing yet.</p>';
@@ -678,7 +678,7 @@ async function pageUsers() {
       <tbody>${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.username)}</td><td>${u.role === 'admin' ? 'Administrator' : 'Operator'}</td>
         <td>${u.active ? 'Active' : '<span class="pill">Disabled</span>'}</td><td class="small muted">${dt(u.last_entry)}</td>
         <td><button class="btn sm" data-edit="${u.id}">Edit</button></td></tr>`).join('')}</tbody></table></div>
-      <p class="small muted">Operators can scan, record deliveries and pick-ups, and undo their own entries for ${undoMinutes} minutes. Administrators see everything.</p></div>`;
+      <p class="small muted">Operators can scan and record deliveries and pick-ups. Only administrators can cancel entries, and they see everything.</p></div>`;
   $('#add-user').onclick = () => userForm(null);
   $$('[data-edit]').forEach((b) => b.onclick = () => userForm(users.find((u) => u.id === +b.dataset.edit)));
 }

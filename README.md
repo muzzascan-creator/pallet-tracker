@@ -16,7 +16,7 @@ npm run demo-data         # optional: sample customers + operators dave/sam (pas
 First start creates login `admin` / `admin` (or `ADMIN_PASSWORD` env var); you're asked to change it.
 Data lives in `data/pallets.db` (one SQLite file). Back up that file to back up everything.
 
-Settings (env vars): `PORT`, `DATA_DIR`, `ADMIN_PASSWORD` (first run only), `UNDO_MINUTES` (default 30).
+Settings (env vars): `PORT`, `DATA_DIR`, `ADMIN_PASSWORD` (first run only).
 
 ## Phone camera
 
@@ -32,7 +32,7 @@ Every entry is a line in a ledger:
 - Adjustment (admin only, needs a reason): opening balances, stocktake corrections
 
 Balance = sum of all non-cancelled lines. Entries are never deleted; they're cancelled with a reason,
-so history stays auditable. Operators can undo their own entries for 30 minutes.
+so history stays auditable. Only admins can cancel entries.
 
 ## Master file import
 
