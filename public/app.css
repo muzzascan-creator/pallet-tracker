@@ -177,3 +177,8 @@ input, select, textarea { font-size: 16px; }
 .bal-list { max-height: 460px; overflow-y: auto; padding-right: 4px; }
 .bal-h { font-size: .85rem; color: var(--muted); margin: 4px 0 8px; }
 .bal-h:not(:first-child) { margin-top: 16px; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--text); }
+th.sortable[data-dir="asc"]::after { content: " ▲"; }
+th.sortable[data-dir="desc"]::after { content: " ▼"; }
+th.sortable[data-dir="asc"], th.sortable[data-dir="desc"] { color: var(--brand); }
