@@ -296,14 +296,14 @@ const stepper = (name, title, cls) => `
 function canUndo(m) {
   return !m.voided_at && m.type !== 'adjust' && (me.role === 'admin' || (m.user_id === me.id && Date.now() - Date.parse(m.created_at) < undoMinutes * 60000));
 }
-function entryList(rows, showUser) {
+function entryList(rows, showUser, allowUndo = true) {
   if (!rows.length) return '<p class="muted">Nothing yet.</p>';
   return rows.map((m) => `
     <div class="entry ${m.voided_at ? 'voided' : ''}">
       <div>${typePill(m)} <b>${fmt(m.qty)}</b>${m.voided_at ? ' <span class="pill">cancelled</span>' : ''}
         <div class="small muted">${dt(m.created_at)}${showUser ? ' · ' + esc(m.user_name) : ' · ' + esc(m.customer_name)}${m.reference ? ' · ' + esc(m.reference) : ''}</div>
         ${m.note ? `<div class="small">${esc(m.note)}</div>` : ''}</div>
-      ${canUndo(m) ? `<button class="btn sm danger" data-undo="${m.id}">Undo</button>` : ''}
+      ${allowUndo && canUndo(m) ? `<button class="btn sm danger" data-undo="${m.id}">Undo</button>` : ''}
     </div>`).join('');
 }
 function bindUndo(root, after) {
@@ -317,8 +317,7 @@ function bindUndo(root, after) {
 async function pageMine() {
   view.innerHTML = '<div class="card"><h1>My recent entries</h1><div id="mine">Loading…</div></div>';
   const { movements } = await api('GET', '/api/movements/mine');
-  $('#mine').innerHTML = entryList(movements, false);
-  bindUndo($('#mine'), pageMine);
+  $('#mine').innerHTML = entryList(movements, false, false);
 }
 
 // ---------- admin: dashboard ----------
