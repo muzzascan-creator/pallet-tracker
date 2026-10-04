@@ -29,7 +29,7 @@ function toast(msg, ms = 2600) {
 function dt(iso, withTime = true) {
   if (!iso) return '';
   const d = new Date(iso);
-  return withTime ? d.toLocaleString([], { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return withTime ? d.toLocaleString([], { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
     : d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
 }
 // <input type=date> value (local day) -> ISO instant at local midnight
@@ -608,7 +608,7 @@ async function pageEntries() {
   });
   $('#ef').onchange = load;
   $('#e-csv').onclick = () => downloadCSV('pallet-entries.csv', [
-    { label: 'Date', value: (m) => new Date(m.created_at).toLocaleString() }, { label: 'Entered by', value: 'user_name' }, { label: 'Customer code', value: 'customer_code' }, { label: 'Customer', value: 'customer_name' },
+    { label: 'Date', value: (m) => new Date(m.created_at).toLocaleString([], { hour12: true }) }, { label: 'Entered by', value: 'user_name' }, { label: 'Customer code', value: 'customer_code' }, { label: 'Customer', value: 'customer_name' },
     { label: 'Type', value: (m) => ({ delivered: 'Delivered', collected: 'Picked up', adjust: 'Adjustment' }[m.type]) }, { label: 'Pallets', value: (m) => Math.abs(m.qty) },
     { label: 'Balance effect', value: 'delta' }, { label: 'Reference', value: 'reference' }, { label: 'Note', value: 'note' },
     { label: 'Cancelled', value: (m) => m.voided_at ? `Yes: ${m.void_reason}` : '' }], rows);
@@ -659,7 +659,7 @@ async function pageReports() {
           <td class="num">${l.type === 'collected' ? fmt(l.qty) : l.type === 'adjust' && l.delta < 0 ? fmt(-l.delta) : ''}</td>${balCell(l.running)}</tr>`).join('')}</tbody>
         <tfoot><tr><td></td><td>Closing balance</td><td></td><td></td><td></td>${balCell(s.closing)}</tr></tfoot></table></div>
         <p>${esc(c.name)} ${balanceText(s.closing)} as at ${f.to ? dt(dayStart(f.to), false) : 'today'}.</p>`;
-      csv = () => downloadCSV(`statement_${c.code}_${f.from}_${f.to}.csv`, [{ label: 'Date', value: (l) => l.created_at ? new Date(l.created_at).toLocaleString() : '' },
+      csv = () => downloadCSV(`statement_${c.code}_${f.from}_${f.to}.csv`, [{ label: 'Date', value: (l) => l.created_at ? new Date(l.created_at).toLocaleString([], { hour12: true }) : '' },
         { label: 'Type', value: (l) => l.type || '' }, { label: 'Reference', value: 'reference' }, { label: 'Note', value: 'note' }, { label: 'Change', value: 'delta' }, { label: 'Balance', value: 'running' }],
         [{ note: 'Opening balance', running: s.opening }, ...s.lines, { note: 'Closing balance', running: s.closing }]);
     } else {
