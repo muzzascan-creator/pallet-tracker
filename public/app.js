@@ -368,7 +368,7 @@ async function pageCustomers() {
     </div>
     <div class="card">
       <div class="row" style="margin-bottom:12px"><div><input id="cq" placeholder="Search name or code"></div>
-        <button class="btn grow-0" id="cowe" aria-pressed="false">Only customers owing</button>
+        <button class="btn grow-0" id="cowe" aria-pressed="false">Outstanding</button>
         <label class="grow-0" style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="call" style="width:auto;min-height:0"> Show inactive</label></div>
       <div class="table-wrap"><table><thead><tr><th>Code</th><th>Customer</th><th class="num">Owed to you</th><th class="num">Delivered</th><th class="num">Picked up</th><th>Last activity</th></tr></thead>
         <tbody id="ctable"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody><tfoot id="cfoot"></tfoot></table></div>
@@ -390,7 +390,7 @@ async function pageCustomers() {
     owingOnly = !owingOnly;
     $('#cowe').classList.toggle('primary', owingOnly);
     $('#cowe').setAttribute('aria-pressed', owingOnly);
-    $('#cowe').textContent = owingOnly ? 'Show all customers' : 'Only customers owing';
+    $('#cowe').textContent = owingOnly ? 'Show all customers' : 'Outstanding';
     load();
   };
   $('#add-cust').onclick = () => customerForm(null, load);
