@@ -234,7 +234,7 @@ function showCustomer(c, recent, savedIds) {
     <div class="card">
       <div class="cust-head"><div><div class="cust-name">${esc(c.name)}</div><div class="small muted">Code ${esc(c.code)}${c.address ? ' · ' + esc(c.address) : ''}</div></div>
         <button class="btn sm" id="clear-cust">✕</button></div>
-      <div class="balance-box ${balCls(c.balance)}"><div class="n">${fmt(Math.abs(c.balance))}</div><div class="l">${c.balance === 0 ? 'All square, nothing owed' : c.balance > 0 ? 'pallets owed to you' : 'pallets you owe them'}</div></div>
+      <div class="balance-box ${balCls(c.balance)}"><div class="n">${fmt(c.balance)}</div><div class="l">${c.balance === 0 ? 'All square, nothing owed' : c.balance > 0 ? 'pallets owed to you' : 'pallets you owe them'}</div></div>
       ${savedIds ? `
       <p style="text-align:center;font-weight:600">✓ Saved</p>
       <div class="row"><button class="btn" id="undo-save">Undo this save</button><button class="btn primary" id="next-cust">Next customer</button></div>` : c.active ? `
@@ -376,11 +376,11 @@ async function pageCustomers() {
   let rows = [], owingOnly = false;
   const load = async () => {
     const r = await api('GET', `/api/customers?q=${encodeURIComponent($('#cq').value.trim())}&all=${$('#call').checked ? 1 : 0}`);
-    rows = owingOnly ? r.customers.filter((c) => c.balance > 0) : r.customers;
+    rows = owingOnly ? r.customers.filter((c) => c.balance !== 0) : r.customers;
     $('#ctable').innerHTML = rows.length ? rows.map((c) => `
       <tr class="click" data-id="${c.id}"><td>${esc(c.code)}</td><td>${esc(c.name)}${c.active ? '' : ' <span class="pill">inactive</span>'}</td>
         ${balCell(c.balance)}<td class="num">${fmt(c.total_delivered)}</td><td class="num">${fmt(c.total_collected)}</td><td class="small muted">${dt(c.last_activity, false)}</td></tr>`).join('')
-      : `<tr><td colspan="6" class="muted">${owingOnly ? 'No customers owe you pallets right now.' : 'No customers yet. Add one or import your master file.'}</td></tr>`;
+      : `<tr><td colspan="6" class="muted">${owingOnly ? 'No outstanding balances right now.' : 'No customers yet. Add one or import your master file.'}</td></tr>`;
     $('#cfoot').innerHTML = rows.length ? `<tr><td></td><td>${rows.length} customers</td>${balCell(rows.reduce((a, c) => a + c.balance, 0))}<td></td><td></td><td></td></tr>` : '';
     $$('#ctable tr[data-id]').forEach((tr) => tr.onclick = () => customerModal(tr.dataset.id, load));
   };
@@ -406,7 +406,7 @@ async function customerModal(id, onChange) {
   const { customer: c, recent } = await api('GET', '/api/customers/' + id);
   const body = openModal(`
     <div class="cust-head"><div><h2 style="margin:0">${esc(c.name)}</h2><div class="small muted">Code ${esc(c.code)}</div></div><button class="btn sm" data-close>✕</button></div>
-    <div class="balance-box ${balCls(c.balance)}"><div class="n">${fmt(Math.abs(c.balance))}</div><div class="l">${c.balance === 0 ? 'All square' : c.balance > 0 ? 'pallets owed to you' : 'pallets you owe them'}</div></div>
+    <div class="balance-box ${balCls(c.balance)}"><div class="n">${fmt(c.balance)}</div><div class="l">${c.balance === 0 ? 'All square' : c.balance > 0 ? 'pallets owed to you' : 'pallets you owe them'}</div></div>
     <div style="text-align:center;margin-bottom:12px"><svg id="bc"></svg></div>
     <div class="toolbar">
       <button class="btn" id="m-edit">Edit details</button>
