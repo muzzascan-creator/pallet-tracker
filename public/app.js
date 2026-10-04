@@ -126,7 +126,7 @@ $('#logout').onclick = async () => { await api('POST', '/api/logout').catch(() =
 // ---------- navigation ----------
 const NAV = {
   admin: [['dashboard', 'Dashboard'], ['scan', 'Scan'], ['customers', 'Customers'], ['entries', 'Entries'], ['reports', 'Reports'], ['users', 'Users']],
-  operator: [['scan', 'Scan'], ['mine', 'My entries']],
+  operator: [['scan', 'Scan'], ['owing', 'Outstanding'], ['mine', 'My entries']],
 };
 const home = () => me.role === 'admin' ? '#/dashboard' : '#/scan';
 
@@ -137,7 +137,7 @@ function renderNav(page) {
 }
 
 const PAGES = {
-  scan: () => pageScan(), mine: () => pageMine(), password: () => showChangePassword(false),
+  scan: () => pageScan(), owing: () => pageOwing(), mine: () => pageMine(), password: () => showChangePassword(false),
   dashboard: () => pageDashboard(), customers: () => pageCustomers(), entries: () => pageEntries(),
   reports: () => pageReports(), users: () => pageUsers(), labels: () => pageLabels(),
 };
@@ -150,7 +150,7 @@ function route() {
   let page = (location.hash.match(/^#\/(\w+)/) || [])[1];
   if (!PAGES[page] || (ADMIN_ONLY.has(page) && me.role !== 'admin')) { page = home().slice(2); history.replaceState(null, '', home()); }
   renderNav(page);
-  view.className = page === 'scan' || page === 'mine' || page === 'password' ? 'narrow' : '';
+  view.className = ['scan', 'mine', 'owing', 'password'].includes(page) ? 'narrow' : '';
   PAGES[page]();
 }
 window.addEventListener('hashchange', route);
@@ -312,6 +312,30 @@ function bindUndo(root, after) {
     try { await api('POST', `/api/movements/${b.dataset.undo}/void`, {}); toast('Entry cancelled'); after(); }
     catch (err) { alert(err.message); }
   });
+}
+
+// Operator list of customers with a pallet balance, A to Z by customer name
+async function pageOwing() {
+  view.innerHTML = '<div class="card"><h1>Outstanding pallets</h1><input id="oq" placeholder="Search name or code" autocomplete="off" autocapitalize="none" style="margin-bottom:8px"><div id="owing" class="muted">Loading…</div></div>';
+  const { customers } = await api('GET', '/api/customers');
+  const list = customers.filter((c) => c.balance !== 0).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  const draw = () => {
+    const q = $('#oq').value.trim().toLowerCase();
+    const rows = q ? list.filter((c) => c.name.toLowerCase().includes(q) || String(c.code).toLowerCase().includes(q)) : list;
+    const owed = rows.filter((c) => c.balance > 0).reduce((a, c) => a + c.balance, 0);
+    const owe = rows.filter((c) => c.balance < 0).reduce((a, c) => a - c.balance, 0);
+    $('#owing').className = '';
+    $('#owing').innerHTML = rows.length ? `
+      <p class="small muted" style="margin:0 0 4px">${rows.length} customers · owed to you <b class="bal pos">${fmt(owed)}</b>${owe ? ` · you owe <b class="bal neg">${fmt(owe)}</b>` : ''}</p>
+      <ul class="results">${rows.map((c) => `<li data-id="${c.id}"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}" style="font-size:1.15rem">${fmt(c.balance)}</span></li>`).join('')}</ul>`
+      : `<p class="muted">${q ? 'No customers match.' : 'No outstanding pallets right now.'}</p>`;
+    $$('#owing li[data-id]').forEach((li) => li.onclick = async () => {
+      const r = await api('GET', '/api/customers/' + li.dataset.id);
+      history.pushState(null, '', '#/scan'); renderNav('scan'); pageScan(r);
+    });
+  };
+  $('#oq').oninput = draw;
+  draw();
 }
 
 async function pageMine() {
