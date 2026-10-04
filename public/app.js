@@ -586,7 +586,7 @@ async function pageEntries() {
   const now = new Date(), from = new Date(now.getFullYear(), now.getMonth(), 1);
   const [{ customers }, { users }] = await Promise.all([api('GET', '/api/customers?all=1'), api('GET', '/api/admin/users')]);
   view.innerHTML = `
-    <div class="toolbar"><h1 style="margin:0">Entries</h1><span class="spacer"></span><button class="btn" id="e-csv">Export CSV</button><button class="btn" onclick="window.print()">Print</button></div>
+    <div class="toolbar"><h1 style="margin:0">Entries</h1><span class="spacer"></span><button class="btn" id="e-csv">Export CSV</button><button class="btn" onclick="window.print()">Print</button><button class="btn danger" id="e-clear">Clear all entries</button></div>
     <div class="card no-print"><form id="ef" class="row">
       <div><label>From</label><input type="date" name="from" value="${ymd(from)}"></div>
       <div><label>To</label><input type="date" name="to" value="${ymd(now)}"></div>
@@ -633,6 +633,24 @@ async function pageEntries() {
     else { sortKey = th.dataset.sort; sortDir = sortKey === 'created_at' ? -1 : 1; }
     render();
   });
+  $('#e-clear').onclick = () => {
+    const body = openModal(`
+      <h2>Clear all entries?</h2>
+      <p>This removes <b>every</b> delivery, pick-up and adjustment, so all customer balances go back to <b>0</b>.
+        Your customers and user logins are kept.</p>
+      <p class="small muted">Tip: click Export CSV first if you want your own copy of the entries.</p>
+      <form id="clr"><div class="field"><label>Type CLEAR to confirm</label><input name="confirm" autocomplete="off" autocapitalize="characters"></div>
+        <div class="err"></div>
+        <div class="modal-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary danger-fill" id="clr-go" disabled>Clear all entries</button></div></form>`);
+    const f = $('#clr', body);
+    $('[data-close]', body).onclick = closeModal;
+    f.confirm.oninput = () => { $('#clr-go').disabled = f.confirm.value.trim().toUpperCase() !== 'CLEAR'; };
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try { const r = await api('POST', '/api/admin/clear-entries', { confirm: f.confirm.value }); closeModal(); toast(`Cleared ${fmt(r.removed)} entries. All balances are now 0.`, 5000); load(); }
+      catch (err) { $('.err', f).textContent = err.message; }
+    };
+  };
   $('#ef').onchange = load;
   $('#e-csv').onclick = () => downloadCSV('pallet-entries.csv', [
     { label: 'Date', value: (m) => new Date(m.created_at).toLocaleString([], { hour12: true }) }, { label: 'Entered by', value: 'user_name' }, { label: 'Customer code', value: 'customer_code' }, { label: 'Customer', value: 'customer_name' },

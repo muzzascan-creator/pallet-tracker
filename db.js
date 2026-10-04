@@ -105,4 +105,4 @@ function applyAdminReset() {
   return r.changes > 0;
 }
 
-module.exports = { db, hashPassword, verifyPassword, ensureAdmin, applyAdminReset };
+module.exports = { db, DATA_DIR, hashPassword, verifyPassword, ensureAdmin, applyAdminReset };
