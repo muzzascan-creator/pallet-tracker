@@ -332,11 +332,47 @@ async function pageOwing() {
     $('#owing').className = '';
     $('#owing').innerHTML = rows.length ? `
       <p class="small muted" style="margin:0 0 4px">${rows.length} customers · owed to you <b class="bal pos">${fmt(owed)}</b>${owe ? ` · you owe <b class="bal neg">${fmt(owe)}</b>` : ''}</p>
-      <ul class="results readonly">${rows.map((c) => `<li><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}" style="font-size:1.15rem">${fmt(c.balance)}</span></li>`).join('')}</ul>`
+      <p class="small muted" style="margin:0 0 8px">Double tap a customer to record pallets returned.</p>
+      <ul class="results readonly tap2">${rows.map((c) => `<li data-id="${c.id}"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}" style="font-size:1.15rem">${fmt(c.balance)}</span></li>`).join('')}</ul>`
       : `<p class="muted">${q ? 'No customers match.' : 'No outstanding pallets right now.'}</p>`;
+    // Double tap (two taps within 400 ms on the same customer) opens the return form
+    let lastId = null, lastAt = 0;
+    $$('#owing li[data-id]').forEach((li) => li.onclick = () => {
+      const now = Date.now();
+      if (lastId === li.dataset.id && now - lastAt < 400) { lastId = null; openReturn(list.find((c) => String(c.id) === li.dataset.id)); }
+      else { lastId = li.dataset.id; lastAt = now; }
+    });
   };
   $('#oq').oninput = draw;
   draw();
+}
+
+// Record pallets returned (picked up) from the Outstanding list
+function openReturn(c) {
+  if (!c) return;
+  const body = openModal(`
+    <h2>${esc(c.name)}</h2>
+    <p class="small muted" style="margin-top:-6px">Code ${esc(c.code)} · ${balanceText(c.balance)}</p>
+    <form id="ret">
+      <div class="steppers">${stepper('collected', 'Pallets returned', 'c')}</div>
+      <div class="after" id="ret-after"></div>
+      <div class="err"></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="ret-save">Save return</button></div>
+    </form>`);
+  const form = $('#ret', body), inp = form.collected;
+  const upd = () => { const k = +inp.value || 0; $('#ret-after').textContent = k ? `After this: ${balanceText(c.balance - k)}` : ''; };
+  $$('.stepper button', form).forEach((b) => b.onclick = () => { inp.value = Math.max(0, (+inp.value || 0) + +b.dataset.step); upd(); });
+  inp.oninput = upd;
+  $('[data-close]', body).onclick = closeModal;
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(+inp.value > 0)) { $('.err', form).textContent = 'Enter how many pallets were returned'; return; }
+    busy($('#ret-save'), true);
+    try {
+      const r = await api('POST', '/api/movements', { customer_id: c.id, delivered: 0, collected: +inp.value });
+      closeModal(); toast(`Saved. ${r.customer.name} ${balanceText(r.customer.balance)}.`, 4000); pageOwing();
+    } catch (err) { $('.err', form).textContent = err.message; busy($('#ret-save'), false); }
+  };
 }
 
 async function pageMine() {
