@@ -257,11 +257,13 @@ function showCustomer(c, recent, savedIds) {
       </form>` : '<p class="err">This customer is marked inactive. Ask an admin.</p>'}
     </div>
     ${me.role === 'admin' ? `<div class="card"><h3>Recent for this customer</h3>${entryList(recent, true)}</div>` : ''}`;
-  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  $('#clear-cust').onclick = () => { box.innerHTML = ''; window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  // While a customer is open, hide the Find customer box; bring it back when they close it
+  const backToFind = () => { box.innerHTML = ''; $('#find').hidden = false; window.scrollTo({ top: 0 }); };
+  $('#find').hidden = true; window.scrollTo({ top: 0 });
+  $('#clear-cust').onclick = backToFind;
   bindUndo(box, () => loadCustomer(c.id));
   if (savedIds) {
-    $('#next-cust').onclick = () => { box.innerHTML = ''; window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    $('#next-cust').onclick = backToFind;
     if ($('#undo-save')) $('#undo-save').onclick = async () => {
       try { for (const id of savedIds) await api('POST', `/api/movements/${id}/void`, {}); toast('Save undone'); loadCustomer(c.id); }
       catch (err) { alert(err.message); }
