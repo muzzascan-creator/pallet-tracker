@@ -180,7 +180,8 @@ function pageScan(customer) {
     <div id="find" class="card">
       <h1>Find customer</h1>
       <div id="scan-box" hidden><div class="scan-area"><div id="reader"></div></div>
-        <button id="scan-stop" class="btn" style="width:100%">Stop camera</button></div>
+        <div class="row"><button id="scan-switch" class="btn" hidden>Switch camera</button><button id="scan-stop" class="btn">Stop camera</button></div>
+        <p class="small muted" style="text-align:center;margin:6px 0 0">Hold the barcode flat, about a hand's width from the camera. Blurry? Tap Switch camera.</p></div>
       <button id="scan-start" class="btn primary big">📷 Scan barcode</button>
       <div id="scan-msg" class="err"></div>
       <div class="or">or type a customer code or name</div>
@@ -190,6 +191,7 @@ function pageScan(customer) {
     </div>
     <div id="cust"></div>`;
   $('#scan-start').onclick = startScanner;
+  $('#scan-switch').onclick = switchCamera;
   $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; };
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
@@ -205,26 +207,59 @@ function pageScan(customer) {
   if (customer) showCustomer(customer.customer, customer.recent);
 }
 
+// Android phones often open a low-resolution or wide-angle camera that can't read 1D barcodes.
+// Ask for a sharp, auto-focusing back camera, read only the barcode types we use, and let the
+// driver switch to another back camera if the first one won't read.
+const SCAN_FORMATS = () => [Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.QR_CODE];
+let backCams = null, camIdx = -1;
+
 async function startScanner() {
   const msg = $('#scan-msg'); msg.textContent = '';
   if (!window.isSecureContext) { msg.textContent = 'The camera only works over https (or on localhost). Type the code instead.'; return; }
   if (!window.Html5Qrcode) { msg.textContent = 'Scanner did not load. Type the code instead.'; return; }
+  await stopScanner();
   $('#scan-box').hidden = false; $('#scan-start').hidden = true;
-  scanner = new Html5Qrcode('reader', { verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
-  const box = (w, h) => ({ width: Math.floor(w * 0.85), height: Math.floor(Math.min(h * 0.6, w * 0.5)) });
+  scanner = new Html5Qrcode('reader', { verbose: false, formatsToSupport: SCAN_FORMATS(), experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+  const box = (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(Math.min(h * 0.6, w * 0.5)) });
+  const onRead = async (text) => {
+    if (!scanner) return;
+    await stopScanner();
+    $('#scan-box').hidden = true; $('#scan-start').hidden = false;
+    if (navigator.vibrate) navigator.vibrate(80);
+    try { await lookupCode(text.trim()); } catch (err) { msg.textContent = err.message; }
+  };
+  const cam = camIdx >= 0 && backCams && backCams[camIdx] ? { deviceId: { exact: backCams[camIdx].id } } : { facingMode: 'environment' };
+  const sharp = { ...cam, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] };
+  const cfg = (vc) => ({ fps: 15, qrbox: box, videoConstraints: vc });
   try {
-    await scanner.start({ facingMode: 'environment' }, { fps: 12, qrbox: box, aspectRatio: 1.333 }, async (text) => {
-      if (!scanner) return;
-      await stopScanner();
-      $('#scan-box').hidden = true; $('#scan-start').hidden = false;
-      if (navigator.vibrate) navigator.vibrate(80);
-      try { await lookupCode(text.trim()); } catch (err) { msg.textContent = err.message; }
-    });
+    try { await scanner.start(cam, cfg(sharp), onRead); }
+    catch (err) { // some phones refuse the extra settings; try again with just the camera
+      if (/permission|notallowed/i.test(String(err))) throw err;
+      try { if (scanner.isScanning) await scanner.stop(); } catch {}
+      await scanner.start(cam, cfg(cam), onRead);
+    }
+    $('#scan-switch').hidden = false;
   } catch (err) {
     await stopScanner();
     $('#scan-box').hidden = true; $('#scan-start').hidden = false;
     msg.textContent = /permission|notallowed/i.test(String(err)) ? 'Camera permission was refused. Allow camera access in your browser settings.' : 'Could not start the camera: ' + err;
   }
+}
+
+// Cycle through the back cameras (main, wide, zoom...) when the default one won't focus
+async function switchCamera() {
+  try {
+    if (!backCams) {
+      const all = await Html5Qrcode.getCameras();
+      const back = all.filter((c) => !/front|user|facetime/i.test(c.label));
+      backCams = back.length ? back : all;
+    }
+    if (backCams.length < 2) { toast('This phone has only one back camera'); return; }
+    camIdx = (camIdx + 1) % backCams.length;
+    await startScanner();
+    toast(`Camera ${camIdx + 1} of ${backCams.length}`);
+  } catch (err) { $('#scan-msg').textContent = 'Could not switch camera: ' + err; }
 }
 
 async function lookupCode(code, quiet) {
