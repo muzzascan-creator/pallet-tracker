@@ -203,3 +203,13 @@ th.sortable[data-dir="asc"], th.sortable[data-dir="desc"] { color: var(--brand);
 td.user-cell { font-size: calc(.85rem + 2pt); font-weight: 700; }
 .results.tap2 li { cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
 .results.tap2 li:active { background: var(--surface-2); }
+#complete-move { width: 100%; min-height: 64px; font-size: 1.35rem; margin: 4px 0 12px; background: var(--surface-2); border: 2px solid var(--brand); color: var(--brand); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
+#complete-move span { font-size: .85rem; font-weight: 500; color: var(--muted); }
+/* phones: driver screens run edge to edge */
+@media (max-width: 600px) {
+  main.narrow { padding: 0; }
+  main.narrow .card { border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; margin-bottom: 8px; padding: 16px; }
+}
+/* when opened from the home screen the app runs full screen; keep clear of the notch and home bar */
+header#topbar { padding-top: max(8px, env(safe-area-inset-top)); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }

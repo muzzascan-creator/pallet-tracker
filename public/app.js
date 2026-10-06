@@ -252,6 +252,7 @@ function showCustomer(c, recent, savedIds) {
           ${stepper('collected', 'Picking up', 'c')}
         </div>
         <div class="after" id="after"></div>
+        <button type="button" class="btn big" id="complete-move">Complete<span>1 delivered + 1 picked up</span></button>
         <div class="err"></div>
         <button class="btn primary big" id="save-move">Save</button>
       </form>` : '<p class="err">This customer is marked inactive. Ask an admin.</p>'}
@@ -280,18 +281,24 @@ function showCustomer(c, recent, savedIds) {
     $$('button', s).forEach((b) => b.onclick = () => { inp.value = Math.max(0, (+inp.value || 0) + +b.dataset.step); upd(); });
     inp.oninput = upd;
   });
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    const f = formData(form); f.customer_id = c.id;
-    if (!(+f.delivered) && !(+f.collected)) { $('.err', form).textContent = 'Enter how many pallets you are delivering or picking up'; return; }
-    busy($('#save-move'), true);
+  const save = async (f, btn) => {
+    f.customer_id = c.id;
+    busy($('#save-move'), true); busy($('#complete-move'), true);
     try {
       const r = await api('POST', '/api/movements', f);
       toast(`Saved. ${r.customer.name} ${balanceText(r.customer.balance)}.`, 4000);
       if (me.role === 'admin') showCustomer(r.customer, r.recent, r.ids);
       else { pageScan(); window.scrollTo({ top: 0 }); } // drivers go straight back to a fresh scan screen
-    } catch (err) { $('.err', form).textContent = err.message; busy($('#save-move'), false); }
+    } catch (err) { $('.err', form).textContent = err.message; busy($('#save-move'), false); busy($('#complete-move'), false); }
   };
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const f = formData(form);
+    if (!(+f.delivered) && !(+f.collected)) { $('.err', form).textContent = 'Enter how many pallets you are delivering or picking up'; return; }
+    save(f);
+  };
+  // Complete: one pallet swapped (1 delivered and 1 picked up), saved in one tap
+  $('#complete-move').onclick = () => save({ delivered: 1, collected: 1 });
 }
 
 const stepper = (name, title, cls) => `
