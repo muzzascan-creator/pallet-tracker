@@ -392,7 +392,7 @@ async function pageOwing() {
 }
 
 // Record pallets returned (picked up) from the Outstanding list
-function openReturn(c) {
+function openReturn(c, after = () => pageOwing(), back = null) {
   if (!c) return;
   const body = openModal(`
     <h2>${esc(c.name)}</h2>
@@ -407,14 +407,14 @@ function openReturn(c) {
   const upd = () => { const k = +inp.value || 0; $('#ret-after').textContent = k ? `After this: ${balanceText(c.balance - k)}` : ''; };
   $$('.stepper button', form).forEach((b) => b.onclick = () => { inp.value = Math.max(0, (+inp.value || 0) + +b.dataset.step); upd(); });
   inp.oninput = upd;
-  $('[data-close]', body).onclick = closeModal;
+  $('[data-close]', body).onclick = back || closeModal;
   form.onsubmit = async (e) => {
     e.preventDefault();
     if (!(+inp.value > 0)) { $('.err', form).textContent = 'Enter how many pallets were returned'; return; }
     busy($('#ret-save'), true);
     try {
       const r = await api('POST', '/api/movements', { customer_id: c.id, delivered: 0, collected: +inp.value });
-      closeModal(); toast(`Saved. ${r.customer.name} ${balanceText(r.customer.balance)}.`, 4000); pageOwing();
+      closeModal(); toast(`Saved. ${r.customer.name} ${balanceText(r.customer.balance)}.`, 4000); after();
     } catch (err) { $('.err', form).textContent = err.message; busy($('#ret-save'), false); }
   };
 }
@@ -520,6 +520,7 @@ async function customerModal(id, onChange) {
     <div class="balance-box ${balCls(c.balance)}"><div class="n">${fmt(c.balance)}</div><div class="l">${c.balance === 0 ? 'All square' : c.balance > 0 ? 'pallets owed to you' : 'pallets you owe them'}</div></div>
     <div style="text-align:center;margin-bottom:12px"><svg id="bc"></svg></div>
     <div class="toolbar">
+      <button class="btn primary" id="m-return">Pallet return</button>
       <button class="btn" id="m-edit">Edit details</button>
       <button class="btn" id="m-adjust">Adjust balance</button>
       <button class="btn" id="m-stmt">Statement</button>
@@ -527,6 +528,7 @@ async function customerModal(id, onChange) {
     <h3>Recent entries</h3><div id="m-recent">${entryList(recent, true)}</div>`);
   try { JsBarcode('#bc', c.code, { format: 'CODE128', height: 50, displayValue: true, margin: 4 }); } catch {}
   $('[data-close]', body).onclick = closeModal;
+  $('#m-return').onclick = () => openReturn(c, () => { customerModal(id, onChange); onChange && onChange(); }, () => customerModal(id, onChange));
   $('#m-edit').onclick = () => customerForm(c, onChange);
   $('#m-adjust').onclick = () => adjustForm(c, onChange);
   $('#m-stmt').onclick = () => { closeModal(); location.hash = '#/reports'; setTimeout(() => openStatement(c.id), 50); };
