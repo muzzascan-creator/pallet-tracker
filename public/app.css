@@ -87,7 +87,8 @@ tfoot td { font-weight: 700; border-top: 2px solid var(--border); border-bottom:
 .bal { font-weight: 700; } .bal.pos { color: var(--owe); } .bal.neg { color: var(--credit); }
 
 /* stat tiles */
-.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 1000px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 800px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
 .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
 .tile .k { font-size: .8rem; color: var(--muted); font-weight: 600; }
@@ -239,3 +240,4 @@ main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 .rc-bf .rc-in { border-width: 1px; font-size: 1rem; }
 .rc-date { text-align: center; margin: -4px 0 12px; font-size: 1.05rem; }
 .rc-in.locked { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+.pill.tx { background: #e0ecfa; color: #1a4f8a; font-weight: 700; }

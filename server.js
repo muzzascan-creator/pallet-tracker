@@ -77,7 +77,7 @@ function cookie(req, value, maxAgeSec) {
 
 // ---------- queries ----------
 const BALANCE_SQL = `
-  SELECT c.id, c.code, c.name, c.address, c.phone, c.email, c.notes, c.active,
+  SELECT c.id, c.code, c.name, c.address, c.phone, c.email, c.notes, c.active, c.tx,
          COALESCE(SUM(CASE WHEN m.voided_at IS NULL THEN m.delta END), 0) AS balance,
          COALESCE(SUM(CASE WHEN m.voided_at IS NULL AND m.type='delivered' THEN m.qty END), 0) AS total_delivered,
          COALESCE(SUM(CASE WHEN m.voided_at IS NULL AND m.type='collected' THEN m.qty END), 0) AS total_collected,
@@ -229,8 +229,11 @@ route('GET', '/api/admin/summary', { auth: 'admin' }, (req, res, { query }) => {
   const counts = db.prepare(`SELECT COUNT(*) AS customers, SUM(CASE WHEN bal > 0 THEN 1 ELSE 0 END) AS owing FROM
       (SELECT c.id, COALESCE(SUM(CASE WHEN m.voided_at IS NULL THEN m.delta END),0) AS bal
        FROM customers c LEFT JOIN movements m ON m.customer_id = c.id WHERE c.active = 1 GROUP BY c.id)`).get();
+  // Pallets owed by customers ticked as "TX Customer" (net of any we owe them)
+  const tx = db.prepare(`SELECT COUNT(DISTINCT c.id) AS n, COALESCE(SUM(CASE WHEN m.voided_at IS NULL THEN m.delta END),0) AS owed
+    FROM customers c LEFT JOIN movements m ON m.customer_id = c.id WHERE c.tx = 1`).get();
   const recent = db.prepare(`${MOVEMENT_SQL} ORDER BY m.created_at DESC, m.id DESC LIMIT 15`).all();
-  send(res, 200, { ...totals, customers: counts.customers, owing: counts.owing || 0, recent });
+  send(res, 200, { ...totals, customers: counts.customers, owing: counts.owing || 0, tx_owed: tx.owed, tx_customers: tx.n, recent });
 });
 
 // --- admin: customers ---
@@ -247,8 +250,8 @@ route('POST', '/api/admin/customers', { auth: 'admin' }, async (req, res, { user
   if (db.prepare('SELECT 1 FROM customers WHERE code = ?').get(f.code)) throw bad(`Code "${f.code}" is already used`);
   const opening = int(b.opening_balance, { min: -MAX_QTY, name: 'Opening balance' });
   const id = transaction(() => {
-    const id = Number(db.prepare(`INSERT INTO customers (code, name, address, phone, email, notes) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(f.code, f.name, f.address, f.phone, f.email, f.notes).lastInsertRowid);
+    const id = Number(db.prepare(`INSERT INTO customers (code, name, address, phone, email, notes, tx) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(f.code, f.name, f.address, f.phone, f.email, f.notes, b.tx === true ? 1 : 0).lastInsertRowid);
     if (opening) db.prepare(`INSERT INTO movements (customer_id, type, qty, delta, note, user_id) VALUES (?, 'adjust', ?, ?, 'Opening balance', ?)`).run(id, opening, opening, user.id);
     return id;
   });
@@ -261,8 +264,8 @@ route('PUT', '/api/admin/customers/:id', { auth: 'admin' }, async (req, res, { p
   if (!db.prepare('SELECT 1 FROM customers WHERE id = ?').get(id)) throw new HttpError(404, 'Customer not found');
   const f = customerFields(b);
   if (db.prepare('SELECT 1 FROM customers WHERE code = ? AND id <> ?').get(f.code, id)) throw bad(`Code "${f.code}" is already used`);
-  db.prepare(`UPDATE customers SET code=?, name=?, address=?, phone=?, email=?, notes=?, active=? WHERE id=?`)
-    .run(f.code, f.name, f.address, f.phone, f.email, f.notes, b.active === false ? 0 : 1, id);
+  db.prepare(`UPDATE customers SET code=?, name=?, address=?, phone=?, email=?, notes=?, active=?, tx=? WHERE id=?`)
+    .run(f.code, f.name, f.address, f.phone, f.email, f.notes, b.active === false ? 0 : 1, b.tx === true ? 1 : 0, id);
   send(res, 200, { customer: customerWithBalance(id) });
 });
 

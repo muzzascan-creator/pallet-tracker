@@ -444,6 +444,7 @@ async function pageDashboard(refresh) {
     <div class="toolbar"><h1 style="margin:0">Dashboard</h1><span class="small muted">Updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })} · refreshes every 30 seconds</span><span class="spacer"></span><a class="btn primary" href="#/scan">📷 Scan / record</a></div>
     <div class="tiles">
       <div class="tile"><div class="k">Pallets owed to you</div><div class="v">${fmt(s.total_owed)}</div><div class="s">across all customers</div></div>
+      <div class="tile"><div class="k">TX customers owe</div><div class="v">${fmt(s.tx_owed)}</div><div class="s">${fmt(s.tx_customers)} TX customer${s.tx_customers === 1 ? '' : 's'}</div></div>
       <div class="tile"><div class="k">Customers owing</div><div class="v">${fmt(s.owing)}</div><div class="s">of ${fmt(s.customers)} active</div></div>
       <div class="tile"><div class="k">Delivered today</div><div class="v">${fmt(s.delivered_today)}</div><div class="s">pallets out</div></div>
       <div class="tile"><div class="k">Picked up today</div><div class="v">${fmt(s.collected_today)}</div><div class="s">pallets back</div></div>
@@ -489,7 +490,7 @@ async function pageCustomers() {
     const r = await api('GET', `/api/customers?q=${encodeURIComponent($('#cq').value.trim())}&all=${$('#call').checked ? 1 : 0}`);
     rows = owingOnly ? r.customers.filter((c) => c.balance !== 0) : r.customers;
     $('#ctable').innerHTML = rows.length ? rows.map((c) => `
-      <tr class="click" data-id="${c.id}"><td>${esc(c.code)}</td><td>${esc(c.name)}${c.active ? '' : ' <span class="pill">inactive</span>'}</td>
+      <tr class="click" data-id="${c.id}"><td>${esc(c.code)}</td><td>${esc(c.name)}${c.tx ? ' <span class="pill tx">TX</span>' : ''}${c.active ? '' : ' <span class="pill">inactive</span>'}</td>
         ${balCell(c.balance)}<td class="num">${fmt(c.total_delivered)}</td><td class="num">${fmt(c.total_collected)}</td><td class="small muted">${dt(c.last_activity, false)}</td></tr>`).join('')
       : `<tr><td colspan="6" class="muted">${owingOnly ? 'No outstanding balances right now.' : 'No customers yet. Add one or import your master file.'}</td></tr>`;
     $('#cfoot').innerHTML = rows.length ? `<tr><td></td><td>${rows.length} customers</td>${balCell(rows.reduce((a, c) => a + c.balance, 0))}<td></td><td></td><td></td></tr>` : '';
@@ -516,7 +517,7 @@ async function pageCustomers() {
 async function customerModal(id, onChange) {
   const { customer: c, recent } = await api('GET', '/api/customers/' + id);
   const body = openModal(`
-    <div class="cust-head"><div><h2 style="margin:0">${esc(c.name)}</h2><div class="small muted">Code ${esc(c.code)}</div></div><button class="btn sm" data-close>✕</button></div>
+    <div class="cust-head"><div><h2 style="margin:0">${esc(c.name)}${c.tx ? ' <span class="pill tx">TX</span>' : ''}</h2><div class="small muted">Code ${esc(c.code)}</div></div><button class="btn sm" data-close>✕</button></div>
     <div class="balance-box ${balCls(c.balance)}"><div class="n">${fmt(c.balance)}</div><div class="l">${c.balance === 0 ? 'All square' : c.balance > 0 ? 'pallets owed to you' : 'pallets you owe them'}</div></div>
     <div style="text-align:center;margin-bottom:12px"><svg id="bc"></svg></div>
     <div class="toolbar">
@@ -536,7 +537,7 @@ async function customerModal(id, onChange) {
 }
 
 function customerForm(c, onChange) {
-  const v = c || { code: '', name: '', address: '', phone: '', email: '', notes: '', active: 1 };
+  const v = c || { code: '', name: '', address: '', phone: '', email: '', notes: '', active: 1, tx: 0 };
   const body = openModal(`
     <h2>${c ? 'Edit customer' : 'Add customer'}</h2>
     <form id="cf">
@@ -546,6 +547,7 @@ function customerForm(c, onChange) {
       <div class="row"><div class="field"><label>Phone</label><input name="phone" value="${esc(v.phone)}"></div>
         <div class="field"><label>Email</label><input name="email" type="email" value="${esc(v.email)}"></div></div>
       <div class="field"><label>Notes</label><input name="notes" value="${esc(v.notes)}"></div>
+      <label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" name="tx" ${v.tx ? 'checked' : ''} style="width:auto;min-height:0"> TX Customer</label>
       ${c ? `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="active" ${v.active ? 'checked' : ''} style="width:auto;min-height:0"> Active</label>`
           : `<div class="field"><label>Pallets they already owe you (opening balance)</label><input name="opening_balance" type="number" value="0"></div>`}
       <div class="err"></div>

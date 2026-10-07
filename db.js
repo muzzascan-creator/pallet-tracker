@@ -77,6 +77,10 @@ CREATE TABLE IF NOT EXISTS reconciliations (
 );
 `);
 
+// Migrations for databases created before a column existed
+const cols = (t) => db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
+if (!cols('customers').includes('tx')) db.exec('ALTER TABLE customers ADD COLUMN tx INTEGER NOT NULL DEFAULT 0'); // "TX Customer" tick box
+
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
