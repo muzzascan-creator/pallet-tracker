@@ -395,7 +395,7 @@ route('GET', '/api/admin/reports/statement', { auth: 'admin' }, (req, res, { que
 
 // ---------- pallet reconciliation (control sheet) ----------
 const RECON_FIELDS = ['opening_owed', 'floor_open', 'rooms_open', 'farm_received', 'direct_suppliers',
-  'dehire_chep', 'dehire_harris', 'floor_close', 'rooms_close', 'closing_owed', 'chep_balance'];
+  'dehire_chep', 'dehire_harris', 'floor_close', 'rooms_close', 'closing_owed', 'chep_start', 'perf_start'];
 const ymdOk = (v, name) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))) throw bad(`Choose the ${name} date`); return v; };
 const reconRow = (r) => r && ({ id: r.id, from: r.period_from, to: r.period_to, ...JSON.parse(r.data),
   created_by_name: r.created_by_name, created_at: r.created_at, updated_at: r.updated_at });
@@ -409,7 +409,7 @@ route('GET', '/api/admin/recon/owed', { auth: 'admin' }, (req, res, { query }) =
 });
 
 route('GET', '/api/admin/recons', { auth: 'admin' }, (req, res) => {
-  send(res, 200, { recons: db.prepare(`${RECON_SQL} ORDER BY r.period_to DESC, r.id DESC LIMIT 100`).all().map(reconRow) });
+  send(res, 200, { recons: db.prepare(`${RECON_SQL} ORDER BY r.period_to DESC, r.id DESC`).all().map(reconRow) });
 });
 
 route('POST', '/api/admin/recons', { auth: 'admin' }, async (req, res, { user }) => {

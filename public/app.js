@@ -817,9 +817,12 @@ async function pageRecon(openId) {
           ${line('Pallets on Floor', 'floor_close')}${line('Pallets in Rooms', 'rooms_close')}${line('Pallets Owed', 'closing_owed', true)}${total('Total Closing', 'rc-closing')}</div></div>
         <div class="rc-sec"><div></div><div>
           <div class="rc-row rc-total rc-balance"><div class="rc-lbl">Balance</div><div class="rc-val" id="rc-balance"></div></div>
-          <div class="rc-chep"><div class="rc-row"><div class="rc-lbl">CHEP Balance</div><div>${box('chep_balance')}</div></div>
+          <div class="rc-chep"><div class="rc-row"><div class="rc-lbl">CHEP Balance</div><div class="rc-val rc-big" id="rc-chep"></div></div>
             <div class="rc-note">Positive Amount = We Owe to CHEP</div></div>
-          <div class="rc-row rc-total"><div class="rc-lbl">Performance</div><div class="rc-val" id="rc-perf">—</div></div>
+          <div class="rc-row rc-total"><div class="rc-lbl">Performance</div><div class="rc-val" id="rc-perf"></div></div>
+          <div class="rc-bf no-print" id="rc-bf"><p class="small muted" style="margin:8px 0 4px">First sheet only: figures to start the running totals from.</p>
+            ${line('CHEP Balance brought forward', 'chep_start')}${line('Performance brought forward', 'perf_start')}</div>
+          <p class="small muted no-print" id="rc-bf-info" style="margin:4px 0 0"></p>
         </div></div>
         <div class="field no-print" style="margin-top:12px"><label>Note (optional)</label><input name="note" maxlength="500"></div>
         <p class="small muted no-print" id="rc-info"></p>
@@ -837,7 +840,35 @@ async function pageRecon(openId) {
     $('#rc-onhand').textContent = fmt(onhand);
     $('#rc-out').textContent = out ? fmt(out) : '';
     $('#rc-closing').textContent = closing ? fmt(closing) : '';
-    $('#rc-balance').textContent = fmt(onhand - out - closing);
+    const balance = onhand - out - closing;
+    $('#rc-balance').textContent = fmt(balance);
+    // Running totals carried from the sheet before this one (or typed starting figures on the very first sheet)
+    const prev = prevOf(current, form.from.value);
+    const chepBf = prev ? prev.chep : val('chep_start'), perfBf = prev ? prev.perf : val('perf_start');
+    $('#rc-chep').textContent = fmt(chepBf + val('farm_received') + val('direct_suppliers') - out);
+    $('#rc-perf').textContent = fmt(perfBf + balance);
+    $('#rc-bf').hidden = !!prev;
+    $('#rc-bf-info').textContent = prev ? `Carried from the ${dt(dayStart(prev.r.to), false)} sheet: CHEP ${fmt(chepBf)}, Performance ${fmt(perfBf)}.` : '';
+  };
+  // Work out CHEP Balance and Performance for every saved sheet, oldest first
+  const chain = () => {
+    const sorted = [...recons].sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to) || a.id - b.id);
+    let chep = 0, perf = 0;
+    return sorted.map((r, i) => {
+      const n = (k) => Number(r[k] || 0);
+      if (i === 0) { chep = n('chep_start'); perf = n('perf_start'); }
+      const out = n('dehire_chep') + n('dehire_harris');
+      const balance = n('opening_owed') + n('floor_open') + n('rooms_open') + n('farm_received') + n('direct_suppliers') - out - n('floor_close') - n('rooms_close') - n('closing_owed');
+      chep += n('farm_received') + n('direct_suppliers') - out; perf += balance;
+      return { r, chep, perf };
+    });
+  };
+  // The sheet just before the one on screen: for a saved sheet, the one before it in date order; for a new one, the latest
+  const prevOf = (id, from) => {
+    const c = chain();
+    if (id) { const i = c.findIndex((x) => x.r.id === id); return i > 0 ? c[i - 1] : null; }
+    const before = c.filter((x) => x.r.from <= (from || '9999'));
+    return before.length ? before[before.length - 1] : null;
   };
   form.oninput = calc;
   let current = null; // id of the sheet being edited
@@ -858,12 +889,12 @@ async function pageRecon(openId) {
       $('#rc-info').textContent = `Saved by ${r.created_by_name}, last changed ${dt(r.updated_at)}. Change any box and Save to update it.`;
       calc();
     } else {
-      // New sheet: starts the day after the last one, and opening floor/rooms carry over from its closing counts
+      // New sheet: one day, the day after the last sheet, and opening floor/rooms carry over from its closing counts
       const last = recons[0], today = ymd(new Date());
       if (last) { const d = new Date(last.to + 'T00:00:00'); d.setDate(d.getDate() + 1); form.from.value = ymd(d) > today ? today : ymd(d);
         form.floor_open.value = last.floor_close ?? ''; form.rooms_open.value = last.rooms_close ?? ''; }
-      else { const n = new Date(); form.from.value = ymd(new Date(n.getFullYear(), n.getMonth(), 1)); }
-      form.to.value = today;
+      else form.from.value = today;
+      form.to.value = form.from.value; // one sheet per day
       $('#rc-info').textContent = 'Boxes marked "from system" are filled from your customer balances for these dates. You can type over them.';
       await fillOwed();
     }

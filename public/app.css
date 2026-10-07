@@ -235,3 +235,5 @@ main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 @media (max-width: 420px) { .rc-sec { grid-template-columns: 1fr; gap: 0; } .rc-balance { margin-left: 0; } .rc-row { grid-template-columns: 1fr 96px; } }
 @media print { .rc-wrap { display: block; } .rc-in { border-color: #000; } .rc-tag { display: none; } }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rc-head, :root:not([data-theme="light"]) .rc-total .rc-lbl, :root:not([data-theme="light"]) .rc-total .rc-val, :root:not([data-theme="light"]) .rc-chep .rc-lbl { color: #6fb2f2; } }
+.rc-big { font-weight: 700; font-size: 1.2rem; color: #1a6fc4; }
+.rc-bf .rc-in { border-width: 1px; font-size: 1rem; }
