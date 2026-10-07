@@ -879,6 +879,11 @@ async function pageRecon(openId) {
   // Opening Balance Owed, Pallets on Floor and Pallets in Rooms are locked once the sheet is saved,
   // and on any sheet after the first (they carry over from the previous day's closing figures)
   const lock = (on) => ['opening_owed', 'floor_open', 'rooms_open'].forEach((k) => { form[k].readOnly = on; form[k].classList.toggle('locked', on); });
+  // A saved sheet is read only; the only way to fix it is to delete it (same day only) and start again
+  const readOnly = (on) => {
+    $$('#rc .rc-in, #rc [name=note]').forEach((el) => { el.readOnly = on; el.classList.toggle('locked', on); });
+    $('#rc-save').hidden = on;
+  };
   let current = null; // id of the sheet being edited
   // Pull "Pallets owed" from the ledger for the chosen dates (opening = start of From, closing = end of To)
   const fillOwed = async () => {
@@ -896,10 +901,11 @@ async function pageRecon(openId) {
     form.reset();
     if (r) {
       form.from.value = r.from; form.to.value = r.to; $('#rc-date').textContent = dt(dayStart(r.from), false);
-      lock(true);
+      readOnly(true);
       for (const k of Object.keys(r)) { const el = form.elements.namedItem(k); if (el && k !== 'from' && k !== 'to') el.value = r[k] ?? ''; }
       $('#rc-open-tag').textContent = prevOf(r.id) ? 'from last sheet' : 'from system';
-      $('#rc-info').textContent = `Saved by ${r.created_by_name}, last changed ${dt(r.updated_at)}. Change any box and Save to update it.`;
+      $('#rc-info').textContent = `Saved by ${r.created_by_name} on ${dt(r.created_at)}. Saved sheets are read only.` +
+        (r.from === ymd(new Date()) ? ' To fix a mistake, delete it in the Saved sheets list and start today\'s sheet again.' : '');
       calc();
     } else {
       // New sheet is always for today (one sheet per day); if today's is already saved, open that instead
@@ -907,6 +913,7 @@ async function pageRecon(openId) {
       const saved = recons.find((x) => x.from === today);
       if (saved) return load(saved);
       const last = recons[0];
+      readOnly(false);
       form.from.value = form.to.value = today; $('#rc-date').textContent = dt(dayStart(today), false);
       if (last) { form.floor_open.value = last.floor_close ?? ''; form.rooms_open.value = last.rooms_close ?? ''; }
       lock(!!last);
@@ -918,11 +925,11 @@ async function pageRecon(openId) {
   };
   const drawList = () => {
     $('#rc-list').innerHTML = recons.length ? `<ul class="results">${recons.map((r) => `<li data-id="${r.id}"><span><b>${dt(dayStart(r.from), false)}</b><br><span class="small muted">${esc(r.created_by_name)}</span></span>
-      <button class="btn sm danger" data-del="${r.id}">Delete</button></li>`).join('')}</ul>` : '<p class="muted">No sheets saved yet.</p>';
+      ${r.from === ymd(new Date()) ? `<button class="btn sm danger" data-del="${r.id}">Delete</button>` : ''}</li>`).join('')}</ul>` : '<p class="muted">No sheets saved yet.</p>';
     $$('#rc-list li[data-id]').forEach((li) => li.onclick = (e) => { if (!e.target.dataset.del) load(recons.find((r) => r.id === Number(li.dataset.id))); });
     $$('[data-del]').forEach((b) => b.onclick = async () => {
-      if (!confirm('Delete this saved sheet?')) return;
-      await api('DELETE', '/api/admin/recons/' + b.dataset.del);
+      if (!confirm('Delete today\'s sheet so you can start it again?')) return;
+      try { await api('DELETE', '/api/admin/recons/' + b.dataset.del); } catch (err) { alert(err.message); return; }
       recons.splice(recons.findIndex((r) => r.id === Number(b.dataset.del)), 1); drawList();
       if (current === Number(b.dataset.del)) load(null);
     });
@@ -931,9 +938,9 @@ async function pageRecon(openId) {
     e.preventDefault(); $('.err', form).textContent = '';
     busy($('#rc-save'), true);
     try {
-      const { recon } = await api('POST', '/api/admin/recons', { ...formData(form), id: current });
-      const i = recons.findIndex((r) => r.id === recon.id);
-      if (i >= 0) recons[i] = recon; else recons.unshift(recon);
+      if (!confirm('Save this sheet? Once saved it cannot be changed.')) { busy($('#rc-save'), false); return; }
+      const { recon } = await api('POST', '/api/admin/recons', formData(form));
+      recons.unshift(recon);
       recons.sort((a, b) => b.to.localeCompare(a.to) || b.id - a.id);
       drawList(); await load(recon); toast('Sheet saved');
     } catch (err) { $('.err', form).textContent = err.message; }

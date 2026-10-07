@@ -422,21 +422,20 @@ route('POST', '/api/admin/recons', { auth: 'admin' }, async (req, res, { user })
     data[k] = v === '' || v == null ? null : int(v, { min: -MAX_QTY, name: k.replace(/_/g, ' ') });
   }
   data.note = str(b.note, 500);
-  let id = Number(b.id) || null;
-  const sameDay = db.prepare('SELECT id FROM reconciliations WHERE period_from = ? AND id <> ?').get(from, id || 0);
-  if (sameDay) throw bad('A sheet for this day is already saved');
-  if (id) {
-    const r = db.prepare('UPDATE reconciliations SET period_from=?, period_to=?, data=?, updated_at=? WHERE id=?')
-      .run(from, to, JSON.stringify(data), new Date().toISOString(), id);
-    if (!r.changes) throw bad('That sheet no longer exists');
-  } else {
-    id = Number(db.prepare('INSERT INTO reconciliations (period_from, period_to, data, created_by) VALUES (?, ?, ?, ?)')
-      .run(from, to, JSON.stringify(data), user.id).lastInsertRowid);
-  }
+  // Saved sheets are read only: a mistake is fixed by deleting today's sheet and saving it again
+  if (b.id) throw bad('A saved sheet cannot be changed. Delete it (same day only) and save it again.');
+  if (db.prepare('SELECT id FROM reconciliations WHERE period_from = ?').get(from)) throw bad('A sheet for this day is already saved');
+  const id = Number(db.prepare('INSERT INTO reconciliations (period_from, period_to, data, created_by) VALUES (?, ?, ?, ?)')
+    .run(from, to, JSON.stringify(data), user.id).lastInsertRowid);
   send(res, 200, { recon: reconRow(db.prepare(`${RECON_SQL} WHERE r.id = ?`).get(id)) });
 });
 
+// A sheet can only be deleted on its own day (business time zone); after that it is permanent
+const businessToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: process.env.APP_TZ || 'Australia/Sydney' }).format(new Date());
 route('DELETE', '/api/admin/recons/:id', { auth: 'admin' }, (req, res, { params }) => {
+  const r = db.prepare('SELECT period_from FROM reconciliations WHERE id = ?').get(Number(params.id));
+  if (!r) throw bad('That sheet no longer exists');
+  if (r.period_from !== businessToday()) throw bad('Only today\'s sheet can be deleted. Older sheets are permanent.');
   db.prepare('DELETE FROM reconciliations WHERE id = ?').run(Number(params.id));
   send(res, 200, { ok: true });
 });
