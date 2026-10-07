@@ -799,7 +799,7 @@ function openStatement(id) { const go = () => pageReports.openStatement ? pageRe
 async function pageRecon(openId) {
   const { recons } = await api('GET', '/api/admin/recons');
   const box = (k, sys) => `<input class="rc-in${sys ? ' sys' : ''}" name="${k}" type="number" inputmode="numeric" step="1">`;
-  const line = (label, k, sys) => `<div class="rc-row"><div class="rc-lbl">${label}${sys ? ' <span class="rc-tag">from system</span>' : ''}</div><div>${box(k, sys)}</div></div>`;
+  const line = (label, k, sys) => `<div class="rc-row"><div class="rc-lbl">${label}${sys ? ` <span class="rc-tag" id="${k === 'opening_owed' ? 'rc-open-tag' : ''}">from system</span>` : ''}</div><div>${box(k, sys)}</div></div>`;
   const total = (label, id) => `<div class="rc-row rc-total"><div class="rc-lbl">${label}</div><div class="rc-val" id="${id}"></div></div>`;
   view.innerHTML = `
     <div class="toolbar no-print"><h1 style="margin:0">Pallet reconciliation</h1><span class="spacer"></span>
@@ -875,7 +875,11 @@ async function pageRecon(openId) {
   // Pull "Pallets owed" from the ledger for the chosen dates (opening = start of From, closing = end of To)
   const fillOwed = async () => {
     const f = form.from.value, t = form.to.value;
-    if (f) form.opening_owed.value = (await api('GET', '/api/admin/recon/owed?at=' + encodeURIComponent(dayStart(f)))).owed;
+    // Opening owed = the previous saved sheet's closing Pallets Owed; only the very first sheet reads it from the system
+    const prev = prevOf(current, f);
+    $('#rc-open-tag').textContent = prev ? 'from last sheet' : 'from system';
+    if (prev) form.opening_owed.value = prev.r.closing_owed ?? '';
+    else if (f) form.opening_owed.value = (await api('GET', '/api/admin/recon/owed?at=' + encodeURIComponent(dayStart(f)))).owed;
     if (t) form.closing_owed.value = (await api('GET', '/api/admin/recon/owed?at=' + encodeURIComponent(dayAfter(t)))).owed;
     calc();
   };
@@ -886,6 +890,7 @@ async function pageRecon(openId) {
     if (r) {
       form.from.value = r.from; form.to.value = r.to;
       for (const k of Object.keys(r)) { const el = form.elements.namedItem(k); if (el && k !== 'from' && k !== 'to') el.value = r[k] ?? ''; }
+      $('#rc-open-tag').textContent = prevOf(r.id) ? 'from last sheet' : 'from system';
       $('#rc-info').textContent = `Saved by ${r.created_by_name}, last changed ${dt(r.updated_at)}. Change any box and Save to update it.`;
       calc();
     } else {
@@ -895,7 +900,7 @@ async function pageRecon(openId) {
         form.floor_open.value = last.floor_close ?? ''; form.rooms_open.value = last.rooms_close ?? ''; }
       else form.from.value = today;
       form.to.value = form.from.value; // one sheet per day
-      $('#rc-info').textContent = 'Boxes marked "from system" are filled from your customer balances for these dates. You can type over them.';
+      $('#rc-info').textContent = 'Opening Balance Owed carries over from the last saved sheet\'s closing Pallets Owed. Closing Pallets Owed is filled from your customer balances. You can type over both.';
       await fillOwed();
     }
     $$('#rc-list li').forEach((li) => li.classList.toggle('on', Number(li.dataset.id) === current));
