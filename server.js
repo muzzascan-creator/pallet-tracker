@@ -393,6 +393,52 @@ route('GET', '/api/admin/reports/statement', { auth: 'admin' }, (req, res, { que
   send(res, 200, { customer, opening, closing: running, lines });
 });
 
+// ---------- pallet reconciliation (control sheet) ----------
+const RECON_FIELDS = ['opening_owed', 'floor_open', 'rooms_open', 'farm_received', 'direct_suppliers',
+  'dehire_chep', 'dehire_harris', 'floor_close', 'rooms_close', 'closing_owed', 'chep_balance'];
+const ymdOk = (v, name) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))) throw bad(`Choose the ${name} date`); return v; };
+const reconRow = (r) => r && ({ id: r.id, from: r.period_from, to: r.period_to, ...JSON.parse(r.data),
+  created_by_name: r.created_by_name, created_at: r.created_at, updated_at: r.updated_at });
+const RECON_SQL = `SELECT r.*, u.name AS created_by_name FROM reconciliations r JOIN users u ON u.id = r.created_by`;
+
+// Net pallets customers owe us at a moment (positive = owed to us), from the ledger
+route('GET', '/api/admin/recon/owed', { auth: 'admin' }, (req, res, { query }) => {
+  const at = isoOrNull(query.get('at'), 'date') || new Date().toISOString();
+  const n = db.prepare('SELECT COALESCE(SUM(delta),0) AS n FROM movements WHERE voided_at IS NULL AND created_at < ?').get(at).n;
+  send(res, 200, { owed: n });
+});
+
+route('GET', '/api/admin/recons', { auth: 'admin' }, (req, res) => {
+  send(res, 200, { recons: db.prepare(`${RECON_SQL} ORDER BY r.period_to DESC, r.id DESC LIMIT 100`).all().map(reconRow) });
+});
+
+route('POST', '/api/admin/recons', { auth: 'admin' }, async (req, res, { user }) => {
+  const b = await readJson(req);
+  const from = ymdOk(b.from, 'From'), to = ymdOk(b.to, 'To');
+  if (to < from) throw bad('The To date is before the From date');
+  const data = {};
+  for (const k of RECON_FIELDS) {
+    const v = b[k];
+    data[k] = v === '' || v == null ? null : int(v, { min: -MAX_QTY, name: k.replace(/_/g, ' ') });
+  }
+  data.note = str(b.note, 500);
+  let id = Number(b.id) || null;
+  if (id) {
+    const r = db.prepare('UPDATE reconciliations SET period_from=?, period_to=?, data=?, updated_at=? WHERE id=?')
+      .run(from, to, JSON.stringify(data), new Date().toISOString(), id);
+    if (!r.changes) throw bad('That sheet no longer exists');
+  } else {
+    id = Number(db.prepare('INSERT INTO reconciliations (period_from, period_to, data, created_by) VALUES (?, ?, ?, ?)')
+      .run(from, to, JSON.stringify(data), user.id).lastInsertRowid);
+  }
+  send(res, 200, { recon: reconRow(db.prepare(`${RECON_SQL} WHERE r.id = ?`).get(id)) });
+});
+
+route('DELETE', '/api/admin/recons/:id', { auth: 'admin' }, (req, res, { params }) => {
+  db.prepare('DELETE FROM reconciliations WHERE id = ?').run(Number(params.id));
+  send(res, 200, { ok: true });
+});
+
 // ---------- static files ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };

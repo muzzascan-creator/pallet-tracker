@@ -213,3 +213,25 @@ td.user-cell { font-size: calc(.85rem + 2pt); font-weight: 700; }
 /* when opened from the home screen the app runs full screen; keep clear of the notch and home bar */
 header#topbar { padding-top: max(8px, env(safe-area-inset-top)); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
 main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+/* pallet reconciliation: laid out like the paper control sheet */
+.rc-wrap { grid-template-columns: minmax(0, 640px) minmax(0, 1fr); }
+@media (max-width: 900px) { .rc-wrap { grid-template-columns: 1fr; } }
+.rc-title { text-align: center; margin: 0 0 12px; }
+.rc-period { margin-bottom: 8px; }
+.rc-sec { display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding: 6px 0; }
+.rc-head, .rc-total .rc-lbl, .rc-total .rc-val { color: #1a6fc4; font-weight: 700; font-size: 1.1rem; }
+.rc-row { display: grid; grid-template-columns: 1fr 120px; align-items: center; gap: 12px; min-height: 48px; }
+.rc-total { border-top: 1.5px solid var(--text); border-bottom: 1.5px solid var(--text); min-height: 36px; margin: 4px 0 8px; }
+.rc-val { text-align: center; }
+.rc-balance { margin-left: 18%; }
+.rc-in { text-align: center; font-weight: 700; font-size: 1.1rem; border: 2px solid var(--text); border-radius: 2px; padding: 8px 4px; width: 100%; }
+.rc-in.sys { background: var(--surface-2); }
+.rc-tag { font-size: .7rem; font-weight: 600; color: var(--muted); background: var(--surface-2); border-radius: 6px; padding: 1px 6px; margin-left: 4px; white-space: nowrap; }
+.rc-chep { border: 2px solid var(--text); padding: 4px 8px; margin: 8px 0; }
+.rc-chep .rc-lbl { color: #1a6fc4; font-weight: 700; font-size: 1.1rem; }
+.rc-chep .rc-in { border-width: 1px; }
+.rc-note { font-weight: 700; font-size: .85rem; }
+#rc-list li.on { background: var(--surface-2); }
+@media (max-width: 420px) { .rc-sec { grid-template-columns: 1fr; gap: 0; } .rc-balance { margin-left: 0; } .rc-row { grid-template-columns: 1fr 96px; } }
+@media print { .rc-wrap { display: block; } .rc-in { border-color: #000; } .rc-tag { display: none; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rc-head, :root:not([data-theme="light"]) .rc-total .rc-lbl, :root:not([data-theme="light"]) .rc-total .rc-val, :root:not([data-theme="light"]) .rc-chep .rc-lbl { color: #6fb2f2; } }

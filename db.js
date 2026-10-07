@@ -64,6 +64,17 @@ CREATE TABLE IF NOT EXISTS movements (
 );
 CREATE INDEX IF NOT EXISTS idx_mov_customer ON movements(customer_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_mov_created ON movements(created_at);
+
+-- Pallet control sheet (reconciliation) saved by an admin for a period. Counts are kept as JSON.
+CREATE TABLE IF NOT EXISTS reconciliations (
+  id INTEGER PRIMARY KEY,
+  period_from TEXT NOT NULL,          -- YYYY-MM-DD (first day of the period)
+  period_to TEXT NOT NULL,            -- YYYY-MM-DD (last day of the period)
+  data TEXT NOT NULL,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
 `);
 
 function hashPassword(password) {

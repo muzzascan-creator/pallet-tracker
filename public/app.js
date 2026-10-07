@@ -125,7 +125,7 @@ $('#logout').onclick = async () => { await api('POST', '/api/logout').catch(() =
 
 // ---------- navigation ----------
 const NAV = {
-  admin: [['dashboard', 'Dashboard'], ['scan', 'Scan'], ['customers', 'Customers'], ['entries', 'Entries'], ['reports', 'Reports'], ['users', 'Users']],
+  admin: [['dashboard', 'Dashboard'], ['scan', 'Scan'], ['customers', 'Customers'], ['entries', 'Entries'], ['reports', 'Reports'], ['recon', 'Reconciliation'], ['users', 'Users']],
   operator: [['scan', 'Scan'], ['owing', 'Outstanding'], ['mine', 'My entries']],
 };
 const home = () => me.role === 'admin' ? '#/dashboard' : '#/scan';
@@ -139,9 +139,9 @@ function renderNav(page) {
 const PAGES = {
   scan: () => pageScan(), owing: () => pageOwing(), mine: () => pageMine(), password: () => showChangePassword(false),
   dashboard: () => pageDashboard(), customers: () => pageCustomers(), entries: () => pageEntries(),
-  reports: () => pageReports(), users: () => pageUsers(), labels: () => pageLabels(),
+  reports: () => pageReports(), users: () => pageUsers(), labels: () => pageLabels(), recon: () => pageRecon(),
 };
-const ADMIN_ONLY = new Set(['dashboard', 'customers', 'entries', 'reports', 'users', 'labels']);
+const ADMIN_ONLY = new Set(['dashboard', 'customers', 'entries', 'reports', 'users', 'labels', 'recon']);
 
 // Admin dashboard reloads itself every 30 seconds while it is on screen
 let dashTimer = null;
@@ -793,6 +793,110 @@ async function pageReports() {
 function openStatement(id) { const go = () => pageReports.openStatement ? pageReports.openStatement(id) : setTimeout(go, 50); go(); }
 
 // ---------- admin: users ----------
+// ---------- pallet reconciliation (Coolibah Salads pallet control sheet) ----------
+// Counts are typed in by the admin; "Pallets owed" (opening and closing) come from the customer ledger.
+// Balance = Total on hand - Total out going - Total closing (0 means every pallet is accounted for).
+async function pageRecon(openId) {
+  const { recons } = await api('GET', '/api/admin/recons');
+  const box = (k, sys) => `<input class="rc-in${sys ? ' sys' : ''}" name="${k}" type="number" inputmode="numeric" step="1">`;
+  const line = (label, k, sys) => `<div class="rc-row"><div class="rc-lbl">${label}${sys ? ' <span class="rc-tag">from system</span>' : ''}</div><div>${box(k, sys)}</div></div>`;
+  const total = (label, id) => `<div class="rc-row rc-total"><div class="rc-lbl">${label}</div><div class="rc-val" id="${id}"></div></div>`;
+  view.innerHTML = `
+    <div class="toolbar no-print"><h1 style="margin:0">Pallet reconciliation</h1><span class="spacer"></span>
+      <button class="btn" id="rc-new">New sheet</button><button class="btn" onclick="window.print()">Print</button></div>
+    <div class="grid-2 rc-wrap">
+      <div class="card rc-sheet"><form id="rc">
+        <h2 class="rc-title">Coolibah Salads - Pallet Control Sheet</h2>
+        <div class="row rc-period"><div><label>From</label><input type="date" name="from" required></div><div><label>To</label><input type="date" name="to" required></div></div>
+        <div class="rc-sec"><div class="rc-head">On Hand</div><div>
+          ${line('Opening Balance Owed', 'opening_owed', true)}${line('Pallets on Floor', 'floor_open')}${line('Pallets in Rooms', 'rooms_open')}
+          ${line('Farm Received', 'farm_received')}${line('Direct Suppliers', 'direct_suppliers')}${total('Total On Hand', 'rc-onhand')}</div></div>
+        <div class="rc-sec"><div class="rc-head">Out Going</div><div>
+          ${line('Dehire to Chep', 'dehire_chep')}${line('Dehire Via Harris Farm', 'dehire_harris')}${total('Total Out Going', 'rc-out')}</div></div>
+        <div class="rc-sec"><div class="rc-head">Closing</div><div>
+          ${line('Pallets on Floor', 'floor_close')}${line('Pallets in Rooms', 'rooms_close')}${line('Pallets Owed', 'closing_owed', true)}${total('Total Closing', 'rc-closing')}</div></div>
+        <div class="rc-sec"><div></div><div>
+          <div class="rc-row rc-total rc-balance"><div class="rc-lbl">Balance</div><div class="rc-val" id="rc-balance"></div></div>
+          <div class="rc-chep"><div class="rc-row"><div class="rc-lbl">CHEP Balance</div><div>${box('chep_balance')}</div></div>
+            <div class="rc-note">Positive Amount = We Owe to CHEP</div></div>
+          <div class="rc-row rc-total"><div class="rc-lbl">Performance</div><div class="rc-val" id="rc-perf">—</div></div>
+        </div></div>
+        <div class="field no-print" style="margin-top:12px"><label>Note (optional)</label><input name="note" maxlength="500"></div>
+        <p class="small muted no-print" id="rc-info"></p>
+        <div class="err"></div>
+        <div class="row no-print"><button class="btn primary big" id="rc-save">Save sheet</button></div>
+      </form></div>
+      <div class="card no-print"><h3>Saved sheets</h3><div id="rc-list"></div></div>
+    </div>`;
+  const form = $('#rc');
+  const val = (k) => { const v = form[k].value; return v === '' ? 0 : Number(v); };
+  const calc = () => {
+    const onhand = ['opening_owed', 'floor_open', 'rooms_open', 'farm_received', 'direct_suppliers'].reduce((a, k) => a + val(k), 0);
+    const out = val('dehire_chep') + val('dehire_harris');
+    const closing = val('floor_close') + val('rooms_close') + val('closing_owed');
+    $('#rc-onhand').textContent = fmt(onhand);
+    $('#rc-out').textContent = out ? fmt(out) : '';
+    $('#rc-closing').textContent = closing ? fmt(closing) : '';
+    $('#rc-balance').textContent = fmt(onhand - out - closing);
+  };
+  form.oninput = calc;
+  let current = null; // id of the sheet being edited
+  // Pull "Pallets owed" from the ledger for the chosen dates (opening = start of From, closing = end of To)
+  const fillOwed = async () => {
+    const f = form.from.value, t = form.to.value;
+    if (f) form.opening_owed.value = (await api('GET', '/api/admin/recon/owed?at=' + encodeURIComponent(dayStart(f)))).owed;
+    if (t) form.closing_owed.value = (await api('GET', '/api/admin/recon/owed?at=' + encodeURIComponent(dayAfter(t)))).owed;
+    calc();
+  };
+  form.from.onchange = form.to.onchange = fillOwed;
+  const load = async (r) => {
+    current = r ? r.id : null;
+    form.reset();
+    if (r) {
+      form.from.value = r.from; form.to.value = r.to;
+      for (const k of Object.keys(r)) { const el = form.elements.namedItem(k); if (el && k !== 'from' && k !== 'to') el.value = r[k] ?? ''; }
+      $('#rc-info').textContent = `Saved by ${r.created_by_name}, last changed ${dt(r.updated_at)}. Change any box and Save to update it.`;
+      calc();
+    } else {
+      // New sheet: starts the day after the last one, and opening floor/rooms carry over from its closing counts
+      const last = recons[0], today = ymd(new Date());
+      if (last) { const d = new Date(last.to + 'T00:00:00'); d.setDate(d.getDate() + 1); form.from.value = ymd(d) > today ? today : ymd(d);
+        form.floor_open.value = last.floor_close ?? ''; form.rooms_open.value = last.rooms_close ?? ''; }
+      else { const n = new Date(); form.from.value = ymd(new Date(n.getFullYear(), n.getMonth(), 1)); }
+      form.to.value = today;
+      $('#rc-info').textContent = 'Boxes marked "from system" are filled from your customer balances for these dates. You can type over them.';
+      await fillOwed();
+    }
+    $$('#rc-list li').forEach((li) => li.classList.toggle('on', Number(li.dataset.id) === current));
+  };
+  const drawList = () => {
+    $('#rc-list').innerHTML = recons.length ? `<ul class="results">${recons.map((r) => `<li data-id="${r.id}"><span><b>${dt(dayStart(r.from), false)} to ${dt(dayStart(r.to), false)}</b><br><span class="small muted">${esc(r.created_by_name)}</span></span>
+      <button class="btn sm danger" data-del="${r.id}">Delete</button></li>`).join('')}</ul>` : '<p class="muted">No sheets saved yet.</p>';
+    $$('#rc-list li[data-id]').forEach((li) => li.onclick = (e) => { if (!e.target.dataset.del) load(recons.find((r) => r.id === Number(li.dataset.id))); });
+    $$('[data-del]').forEach((b) => b.onclick = async () => {
+      if (!confirm('Delete this saved sheet?')) return;
+      await api('DELETE', '/api/admin/recons/' + b.dataset.del);
+      recons.splice(recons.findIndex((r) => r.id === Number(b.dataset.del)), 1); drawList();
+      if (current === Number(b.dataset.del)) load(null);
+    });
+  };
+  form.onsubmit = async (e) => {
+    e.preventDefault(); $('.err', form).textContent = '';
+    busy($('#rc-save'), true);
+    try {
+      const { recon } = await api('POST', '/api/admin/recons', { ...formData(form), id: current });
+      const i = recons.findIndex((r) => r.id === recon.id);
+      if (i >= 0) recons[i] = recon; else recons.unshift(recon);
+      recons.sort((a, b) => b.to.localeCompare(a.to) || b.id - a.id);
+      drawList(); await load(recon); toast('Sheet saved');
+    } catch (err) { $('.err', form).textContent = err.message; }
+    busy($('#rc-save'), false);
+  };
+  $('#rc-new').onclick = () => load(null);
+  drawList();
+  await load(openId ? recons.find((r) => r.id === openId) : null);
+}
+
 async function pageUsers() {
   const { users } = await api('GET', '/api/admin/users');
   view.innerHTML = `
