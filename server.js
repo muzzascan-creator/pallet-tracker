@@ -423,6 +423,8 @@ route('POST', '/api/admin/recons', { auth: 'admin' }, async (req, res, { user })
   }
   data.note = str(b.note, 500);
   let id = Number(b.id) || null;
+  const sameDay = db.prepare('SELECT id FROM reconciliations WHERE period_from = ? AND id <> ?').get(from, id || 0);
+  if (sameDay) throw bad('A sheet for this day is already saved');
   if (id) {
     const r = db.prepare('UPDATE reconciliations SET period_from=?, period_to=?, data=?, updated_at=? WHERE id=?')
       .run(from, to, JSON.stringify(data), new Date().toISOString(), id);

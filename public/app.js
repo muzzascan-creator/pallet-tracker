@@ -798,7 +798,8 @@ function openStatement(id) { const go = () => pageReports.openStatement ? pageRe
 // Balance = Total on hand - Total out going - Total closing (0 means every pallet is accounted for).
 async function pageRecon(openId) {
   const { recons } = await api('GET', '/api/admin/recons');
-  const box = (k, sys) => `<input class="rc-in${sys ? ' sys' : ''}" name="${k}" type="number" inputmode="numeric" step="1">`;
+  // Plain number boxes (no up/down arrows): digits only, with an optional minus sign
+  const box = (k, sys) => `<input class="rc-in${sys ? ' sys' : ''}" name="${k}" type="text" inputmode="numeric" autocomplete="off" maxlength="7">`;
   const line = (label, k, sys) => `<div class="rc-row"><div class="rc-lbl">${label}${sys ? ` <span class="rc-tag" id="${k === 'opening_owed' ? 'rc-open-tag' : ''}">from system</span>` : ''}</div><div>${box(k, sys)}</div></div>`;
   const total = (label, id) => `<div class="rc-row rc-total"><div class="rc-lbl">${label}</div><div class="rc-val" id="${id}"></div></div>`;
   view.innerHTML = `
@@ -807,7 +808,8 @@ async function pageRecon(openId) {
     <div class="grid-2 rc-wrap">
       <div class="card rc-sheet"><form id="rc">
         <h2 class="rc-title">Coolibah Salads - Pallet Control Sheet</h2>
-        <div class="row rc-period"><div><label>From</label><input type="date" name="from" required></div><div><label>To</label><input type="date" name="to" required></div></div>
+        <input type="hidden" name="from"><input type="hidden" name="to">
+        <p class="rc-date">Date: <b id="rc-date"></b></p>
         <div class="rc-sec"><div class="rc-head">On Hand</div><div>
           ${line('Opening Balance Owed', 'opening_owed', true)}${line('Pallets on Floor', 'floor_open')}${line('Pallets in Rooms', 'rooms_open')}
           ${line('Farm Received', 'farm_received')}${line('Direct Suppliers', 'direct_suppliers')}${total('Total On Hand', 'rc-onhand')}</div></div>
@@ -867,10 +869,16 @@ async function pageRecon(openId) {
   const prevOf = (id, from) => {
     const c = chain();
     if (id) { const i = c.findIndex((x) => x.r.id === id); return i > 0 ? c[i - 1] : null; }
-    const before = c.filter((x) => x.r.from <= (from || '9999'));
+    const before = c.filter((x) => x.r.from < (from || '9999'));
     return before.length ? before[before.length - 1] : null;
   };
-  form.oninput = calc;
+  form.oninput = (e) => {
+    if (e.target.classList.contains('rc-in')) { const v = e.target.value, c = v.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, ''); if (c !== v) e.target.value = c; }
+    calc();
+  };
+  // Opening Balance Owed, Pallets on Floor and Pallets in Rooms are locked once the sheet is saved,
+  // and on any sheet after the first (they carry over from the previous day's closing figures)
+  const lock = (on) => ['opening_owed', 'floor_open', 'rooms_open'].forEach((k) => { form[k].readOnly = on; form[k].classList.toggle('locked', on); });
   let current = null; // id of the sheet being edited
   // Pull "Pallets owed" from the ledger for the chosen dates (opening = start of From, closing = end of To)
   const fillOwed = async () => {
@@ -883,30 +891,33 @@ async function pageRecon(openId) {
     if (t) form.closing_owed.value = (await api('GET', '/api/admin/recon/owed?at=' + encodeURIComponent(dayAfter(t)))).owed;
     calc();
   };
-  form.from.onchange = form.to.onchange = fillOwed;
   const load = async (r) => {
     current = r ? r.id : null;
     form.reset();
     if (r) {
-      form.from.value = r.from; form.to.value = r.to;
+      form.from.value = r.from; form.to.value = r.to; $('#rc-date').textContent = dt(dayStart(r.from), false);
+      lock(true);
       for (const k of Object.keys(r)) { const el = form.elements.namedItem(k); if (el && k !== 'from' && k !== 'to') el.value = r[k] ?? ''; }
       $('#rc-open-tag').textContent = prevOf(r.id) ? 'from last sheet' : 'from system';
       $('#rc-info').textContent = `Saved by ${r.created_by_name}, last changed ${dt(r.updated_at)}. Change any box and Save to update it.`;
       calc();
     } else {
-      // New sheet: one day, the day after the last sheet, and opening floor/rooms carry over from its closing counts
-      const last = recons[0], today = ymd(new Date());
-      if (last) { const d = new Date(last.to + 'T00:00:00'); d.setDate(d.getDate() + 1); form.from.value = ymd(d) > today ? today : ymd(d);
-        form.floor_open.value = last.floor_close ?? ''; form.rooms_open.value = last.rooms_close ?? ''; }
-      else form.from.value = today;
-      form.to.value = form.from.value; // one sheet per day
-      $('#rc-info').textContent = 'Opening Balance Owed carries over from the last saved sheet\'s closing Pallets Owed. Closing Pallets Owed is filled from your customer balances. You can type over both.';
+      // New sheet is always for today (one sheet per day); if today's is already saved, open that instead
+      const today = ymd(new Date());
+      const saved = recons.find((x) => x.from === today);
+      if (saved) return load(saved);
+      const last = recons[0];
+      form.from.value = form.to.value = today; $('#rc-date').textContent = dt(dayStart(today), false);
+      if (last) { form.floor_open.value = last.floor_close ?? ''; form.rooms_open.value = last.rooms_close ?? ''; }
+      lock(!!last);
+      $('#rc-info').textContent = last ? 'Opening figures carry over from the last saved sheet. Closing Pallets Owed is filled from your customer balances.'
+        : 'First sheet: type your opening figures. They are locked once saved.';
       await fillOwed();
     }
     $$('#rc-list li').forEach((li) => li.classList.toggle('on', Number(li.dataset.id) === current));
   };
   const drawList = () => {
-    $('#rc-list').innerHTML = recons.length ? `<ul class="results">${recons.map((r) => `<li data-id="${r.id}"><span><b>${dt(dayStart(r.from), false)} to ${dt(dayStart(r.to), false)}</b><br><span class="small muted">${esc(r.created_by_name)}</span></span>
+    $('#rc-list').innerHTML = recons.length ? `<ul class="results">${recons.map((r) => `<li data-id="${r.id}"><span><b>${dt(dayStart(r.from), false)}</b><br><span class="small muted">${esc(r.created_by_name)}</span></span>
       <button class="btn sm danger" data-del="${r.id}">Delete</button></li>`).join('')}</ul>` : '<p class="muted">No sheets saved yet.</p>';
     $$('#rc-list li[data-id]').forEach((li) => li.onclick = (e) => { if (!e.target.dataset.del) load(recons.find((r) => r.id === Number(li.dataset.id))); });
     $$('[data-del]').forEach((b) => b.onclick = async () => {
