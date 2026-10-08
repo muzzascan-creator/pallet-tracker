@@ -323,7 +323,13 @@ function showCustomer(c, recent, savedIds) {
       const r = await api('POST', '/api/movements', f);
       toast(`Saved. ${r.customer.name} ${balanceText(r.customer.balance)}.`, 4000);
       if (me.role === 'admin') showCustomer(r.customer, r.recent, r.ids);
-      else { pageScan(); window.scrollTo({ top: 0 }); } // drivers go straight back to a fresh scan screen
+      else { // drivers go straight back to a fresh scan screen, with a big "Saved" banner so they know it worked
+        pageScan(); window.scrollTo({ top: 0 });
+        const what = [f.delivered > 0 && `${fmt(f.delivered)} delivered`, f.collected > 0 && `${fmt(f.collected)} picked up`].filter(Boolean).join(' + ');
+        $('#find').insertAdjacentHTML('beforebegin', `<div class="saved-banner" id="saved-banner">✓ Saved<span>${esc(r.customer.name)}: ${what}</span><span>Now ${balanceText(r.customer.balance)}</span></div>`);
+        if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+        setTimeout(() => { const b = $('#saved-banner'); if (b) b.remove(); }, 6000);
+      }
     } catch (err) { $('.err', form).textContent = err.message; busy($('#save-move'), false); busy($('#complete-move'), false); }
   };
   form.onsubmit = (e) => {
