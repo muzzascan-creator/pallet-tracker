@@ -743,10 +743,11 @@ async function pageReports() {
   customers.sort((a, b) => a.name.localeCompare(b.name));
   view.innerHTML = `
     <div class="toolbar"><h1 style="margin:0">Reports</h1><span class="spacer"></span>
-      <select id="rtype" style="max-width:280px"><option value="activity">Balances &amp; movements by customer</option><option value="statement">Customer statement</option><option value="operators">Operator activity</option></select></div>
+      <select id="rtype" style="max-width:280px"><option value="activity">Balances &amp; movements by customer</option><option value="outstanding">Outstanding balances only</option><option value="statement">Customer statement</option><option value="operators">Operator activity</option></select></div>
     <div class="card no-print"><form id="rf" class="row">
       <div><label>From</label><input type="date" name="from" value="${ymd(from)}"></div>
       <div><label>To</label><input type="date" name="to" value="${ymd(now)}"></div>
+      <div id="rtx" class="grow-0" hidden style="display:flex;align-items:flex-end"><label style="display:flex;gap:6px;align-items:center;margin:0 0 12px"><input type="checkbox" name="tx_only" style="width:auto;min-height:0"> TX customers only</label></div>
       <div id="rcust" hidden><label>Customer</label><select name="customer_id"><option value="">Choose…</option>${customers.map((c) => `<option value="${c.id}">${esc(c.name)} (${esc(c.code)})</option>`).join('')}</select></div>
       <div class="grow-0" style="display:flex;gap:8px"><button type="button" class="btn" id="rcsv">Export CSV</button><button type="button" class="btn" onclick="window.print()">Print</button></div>
     </form></div>
@@ -755,6 +756,9 @@ async function pageReports() {
   const run = async () => {
     const f = formData($('#rf')), type = $('#rtype').value;
     $('#rcust').hidden = type !== 'statement';
+    $('#rtx').hidden = type !== 'outstanding';
+    $('#rf').from.closest('div').hidden = type === 'outstanding'; // outstanding is "as at" the To date
+    $('label', $('#rf').to.closest('div')).textContent = type === 'outstanding' ? 'As at' : 'To';
     const period = `${f.from ? dt(dayStart(f.from), false) : 'start'} to ${f.to ? dt(dayStart(f.to), false) : 'today'}`;
     const qs = new URLSearchParams({ from: dayStart(f.from), to: dayAfter(f.to) });
     const out = $('#rout');
@@ -767,6 +771,20 @@ async function pageReports() {
         <tfoot><tr><td></td><td>Total</td><td class="num">${fmt(tot('opening'))}</td><td class="num">${fmt(tot('delivered'))}</td><td class="num">${fmt(tot('collected'))}</td><td class="num">${signed(tot('adjusted'))}</td>${balCell(tot('closing'))}</tr></tfoot></table></div>`;
       csv = () => downloadCSV(`pallet-balances_${f.from}_${f.to}.csv`, [{ label: 'Code', value: 'code' }, { label: 'Customer', value: 'name' }, { label: 'Opening', value: 'opening' },
         { label: 'Delivered', value: 'delivered' }, { label: 'Picked up', value: 'collected' }, { label: 'Adjustments', value: 'adjusted' }, { label: 'Closing balance', value: 'closing' }], rows);
+    } else if (type === 'outstanding') {
+      // Customers whose balance is not zero at the end of the To date, highest owed first
+      const asAt = f.to ? dt(dayStart(f.to), false) : 'today';
+      const { rows: all } = await api('GET', '/api/admin/reports/activity?' + new URLSearchParams({ from: '', to: dayAfter(f.to) }));
+      const rows = all.filter((r) => r.closing !== 0 && (!f.tx_only || r.tx)).sort((a, b) => b.closing - a.closing || a.name.localeCompare(b.name));
+      const owed = rows.filter((r) => r.closing > 0).reduce((a, r) => a + r.closing, 0);
+      const owe = rows.filter((r) => r.closing < 0).reduce((a, r) => a - r.closing, 0);
+      out.innerHTML = `<h2>Outstanding pallet balances${f.tx_only ? ' (TX customers)' : ''}</h2>
+        <p class="muted">As at ${asAt}. ${fmt(rows.length)} customers. Positive = pallets the customer owes you; negative = pallets you owe them.</p>
+        <div class="table-wrap"><table><thead><tr><th>Code</th><th>Customer</th><th>Phone</th><th class="num">Outstanding</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr><td>${esc(r.code)}</td><td>${esc(r.name)}${r.tx ? ' <span class="pill tx">TX</span>' : ''}</td><td class="small">${esc(r.phone)}</td>${balCell(r.closing)}</tr>`).join('') || '<tr><td colspan="4" class="muted">No outstanding balances.</td></tr>'}</tbody>
+        <tfoot><tr><td></td><td>Owed to you</td><td></td>${balCell(owed)}</tr>${owe ? `<tr><td></td><td>You owe customers</td><td></td>${balCell(-owe)}</tr><tr><td></td><td>Net</td><td></td>${balCell(owed - owe)}</tr>` : ''}</tfoot></table></div>`;
+      csv = () => downloadCSV(`outstanding-balances_${f.to || 'today'}.csv`, [{ label: 'Code', value: 'code' }, { label: 'Customer', value: 'name' },
+        { label: 'TX customer', value: (r) => r.tx ? 'Yes' : '' }, { label: 'Phone', value: 'phone' }, { label: 'Outstanding', value: 'closing' }], rows);
     } else if (type === 'statement') {
       if (!f.customer_id) { out.innerHTML = '<p class="muted">Choose a customer to see their statement.</p>'; csv = null; return; }
       const s = await api('GET', `/api/admin/reports/statement?customer_id=${f.customer_id}&` + qs);

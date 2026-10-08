@@ -370,7 +370,7 @@ route('GET', '/api/admin/movements', { auth: 'admin' }, (req, res, { query }) =>
 route('GET', '/api/admin/reports/activity', { auth: 'admin' }, (req, res, { query }) => {
   const from = isoOrNull(query.get('from'), 'from') || '0000', to = isoOrNull(query.get('to'), 'to') || '9999';
   const rows = db.prepare(`
-    SELECT c.id, c.code, c.name, c.active,
+    SELECT c.id, c.code, c.name, c.active, c.tx, c.phone,
       COALESCE(SUM(CASE WHEN m.created_at < ? THEN m.delta END),0) AS opening,
       COALESCE(SUM(CASE WHEN m.created_at >= ? AND m.created_at < ? AND m.type='delivered' THEN m.qty END),0) AS delivered,
       COALESCE(SUM(CASE WHEN m.created_at >= ? AND m.created_at < ? AND m.type='collected' THEN m.qty END),0) AS collected,
