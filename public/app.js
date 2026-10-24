@@ -216,8 +216,8 @@ function pageScan(customer) {
         <p class="small muted" style="text-align:center;margin:6px 0 0">Hold the barcode flat, about a hand's width from the camera. Blurry? Tap Switch camera.</p></div>
       <button id="scan-start" class="btn primary big"${cam ? '' : ' hidden'}>📷 Open camera</button>
       <div id="scan-msg" class="err"></div>
-      <div class="or">or type a customer code or name</div>
-      <form id="manual" class="row"><div><input id="q" placeholder="Code or name" autocomplete="off" autocapitalize="none"></div>
+      <div class="or">${cam ? 'or type a customer code or name' : 'Tap the box, then press the scanner trigger'}</div>
+      <form id="manual" class="row"><div><input id="q" placeholder="${cam ? 'Code or name' : 'Tap here, then scan'}" autocomplete="off" autocapitalize="none"></div>
         <button class="btn grow-0">Search</button></form>
       <ul id="results" class="results"></ul>
       <p class="small muted mode-line">Using ${cam ? 'phone camera' : 'handheld scanner'} · <button class="link" id="scan-mode">Change</button></p>
@@ -227,13 +227,23 @@ function pageScan(customer) {
   $('#scan-start').onclick = startScanner;
   $('#scan-switch').onclick = switchCamera;
   $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw(); };
-  hwBar(!cam);
+  hwBar(false);
+  // Handheld mode: the scanner types into this box (after the driver taps it), dropping the whole
+  // code in at once with no Enter, so search as soon as a chunk like that lands
+  const q = $('#q'); let qLen = 0, qTimer = null;
+  q.addEventListener('input', (e) => {
+    const len = q.value.length, jump = len - qLen; qLen = len;
+    if (cam || !/^insert/.test(e.inputType || 'insert') || jump < HW_MIN_LEN) return;
+    clearTimeout(qTimer);
+    qTimer = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(80); $('#manual').requestSubmit(); }, HW_IDLE_MS);
+  });
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
-    const q = $('#q').value.trim(); if (!q) return;
+    const text = q.value.trim(); if (!text) return;
+    if (!cam) { q.value = ''; qLen = 0; }
     $('#cust').innerHTML = '';
-    try { return await lookupCode(q, true); } catch {}
-    const { customers } = await api('GET', '/api/customers?q=' + encodeURIComponent(q));
+    try { return await lookupCode(text, true); } catch {}
+    const { customers } = await api('GET', '/api/customers?q=' + encodeURIComponent(text));
     $('#results').innerHTML = customers.length ? customers.slice(0, 20).map((c) =>
       `<li data-id="${c.id}"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}">${fmt(c.balance)}</span></li>`).join('')
       : '<li class="muted">No customers match</li>';
@@ -246,7 +256,7 @@ function pageScan(customer) {
 // Back on the Find screen: get the chosen scanner listening again
 function resumeScan() {
   if (getScanMode() === 'cam') { if (!scanner) startScanner(); }
-  else { hwBar(true); focusHw(); }
+  else hwBar(false); // the driver taps the search box to scan again
 }
 
 // ---------- scanner test page (#/scantest, not in the menu) ----------
