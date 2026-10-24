@@ -71,7 +71,7 @@ function busy(btn, on) { if (btn) { btn.disabled = on; } }
 
 // ---------- auth ----------
 function showLogin(msg = '') {
-  stopScanner();
+  stopScanner(); hwBar(false);
   $('#topbar').hidden = true;
   view.className = '';
   view.innerHTML = `
@@ -154,7 +154,7 @@ function route() {
   if (me.mustChangePassword) { renderNav(''); return showChangePassword(true); }
   let page = (location.hash.match(/^#\/(\w+)/) || [])[1];
   if (!PAGES[page] || (ADMIN_ONLY.has(page) && me.role !== 'admin')) { page = home().slice(2); history.replaceState(null, '', home()); }
-  if (page !== 'scan') hwInput.blur();
+  if (page !== 'scan') { hwInput.blur(); hwBar(false); }
   renderNav(page);
   view.className = ['scan', 'mine', 'owing', 'password'].includes(page) ? 'narrow' : '';
   PAGES[page]();
@@ -199,17 +199,12 @@ function pageScan(customer) {
       <div id="find" class="card mode-pick">
         <h1>How will you scan?</h1>
         <p class="muted">Pick once. The app remembers it until you log out.</p>
-        <label class="btn primary big" data-mode="hw" for="hw-scan">Handheld scanner</label>
+        <button class="btn primary big" data-mode="hw">Handheld scanner</button>
         <button class="btn big" data-mode="cam">📷 Phone camera</button>
       </div>
       <div id="cust"></div>`;
-    // Handheld is a <label> for the scanner box: the device only types into a box focused by a real tap,
-    // so let the label's own tap focus it, then redraw once that has happened
-    $$('[data-mode]').forEach((b) => b.onclick = () => {
-      setScanMode(b.dataset.mode);
-      if (b.dataset.mode === 'hw') hwArmed = true;
-      setTimeout(() => pageScan());
-    });
+    hwBar(false);
+    $$('[data-mode]').forEach((b) => b.onclick = () => { setScanMode(b.dataset.mode); pageScan(); });
     return;
   }
   const cam = mode === 'cam';
@@ -219,7 +214,6 @@ function pageScan(customer) {
       <div id="scan-box" hidden><div class="scan-area"><div id="reader"></div></div>
         <div class="row"><button id="scan-switch" class="btn" hidden>Switch camera</button><button id="scan-stop" class="btn">Stop camera</button></div>
         <p class="small muted" style="text-align:center;margin:6px 0 0">Hold the barcode flat, about a hand's width from the camera. Blurry? Tap Switch camera.</p></div>
-      <label class="hw-scan" id="hw-wrap" for="hw-scan"${cam ? ' hidden' : ''}><span class="hw-dot"></span><span id="hw-label">Scanner ready: press the trigger</span></label>
       <button id="scan-start" class="btn primary big"${cam ? '' : ' hidden'}>📷 Open camera</button>
       <div id="scan-msg" class="err"></div>
       <div class="or">or type a customer code or name</div>
@@ -233,11 +227,7 @@ function pageScan(customer) {
   $('#scan-start').onclick = startScanner;
   $('#scan-switch').onclick = switchCamera;
   $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw(); };
-  // If the box already has focus (e.g. set from code), a tap wouldn't re-focus it and the scanner stays
-  // deaf, so drop focus first and let the tap focus it for real
-  $('#hw-wrap').onpointerdown = () => { if (document.activeElement === hwInput) hwInput.blur(); };
-  $('#hw-wrap').onclick = () => { hwArmed = true; setTimeout(hwState); };
-  hwState();
+  hwBar(!cam);
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
     const q = $('#q').value.trim(); if (!q) return;
@@ -256,7 +246,7 @@ function pageScan(customer) {
 // Back on the Find screen: get the chosen scanner listening again
 function resumeScan() {
   if (getScanMode() === 'cam') { if (!scanner) startScanner(); }
-  else focusHw();
+  else { hwBar(true); focusHw(); }
 }
 
 // ---------- scanner test page (#/scantest, not in the menu) ----------
@@ -296,12 +286,13 @@ function pageScanTest() {
 }
 
 // ---------- handheld (hardware) barcode scanner ----------
-// Rugged scanners work like a keyboard: they "type" the barcode very fast, usually ending with Enter.
-// They need a focused box to type into. The box lives outside the page content so it survives
-// re-renders (open customer, Save, back to Find), and taps on buttons don't take focus off it,
-// because once a scanner loses its box it often stays quiet until the box is tapped again.
-// inputmode=none stops the on-screen keyboard popping up. A page-wide key listener also catches
-// fast bursts when nothing is focused.
+// Rugged scanners "type" the barcode into whatever box has focus. The Scansku scanner sends the whole
+// code in one go through the keyboard system (no key presses, no Enter), and only into a visible box
+// the driver has tapped. So on the Find screen the scanner box is a real, visible bar at the bottom of
+// the screen that the driver taps once. It lives outside the page content, so Save and the customer
+// screen don't destroy it; while a customer is open it shrinks out of sight but keeps focus.
+// inputmode=none stops the on-screen keyboard popping up. A page-wide key listener also catches fast
+// key bursts from scanners that send real key presses when nothing is focused.
 const HW_GAP_MS = 60, HW_IDLE_MS = 150, HW_MIN_LEN = 3;
 let hwBuf = '', hwLast = 0, hwTimer = null;
 
@@ -314,15 +305,17 @@ hwInput.onkeydown = (e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preve
 hwInput.oninput = () => { hwArmed = true; clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
 hwInput.onfocus = () => hwState();
 hwInput.onblur = () => { hwArmed = false; hwState(); };
+// A tap on the bar always focuses it for real (drop any focus set from code first)
+hwInput.onpointerdown = () => { if (document.activeElement === hwInput) hwInput.blur(); hwArmed = true; };
+function hwBar(show) { document.body.classList.toggle('hw-find', show); hwState(); }
 
 // Focusing the box from code isn't enough on some scanners, so only show "ready" once it was focused
 // by a tap (or text has already arrived) and hasn't lost focus since
 let hwArmed = false;
 function hwState() {
-  const wrap = $('#hw-wrap'); if (!wrap) return;
   const on = document.activeElement === hwInput && hwArmed;
-  wrap.classList.toggle('on', on);
-  $('#hw-label').textContent = on ? 'Scanner ready: press the trigger' : 'Tap here to use the handheld scanner';
+  hwInput.classList.toggle('on', on);
+  hwInput.placeholder = on ? '● Scanner ready: press the trigger' : 'Tap here to use the handheld scanner';
 }
 function focusHw() {
   if (getScanMode() === 'cam') return;
@@ -437,6 +430,7 @@ async function lookupCode(code, quiet) {
 async function loadCustomer(id) { const r = await api('GET', '/api/customers/' + id); showCustomer(r.customer, r.recent); }
 
 function showCustomer(c, recent, savedIds) {
+  hwBar(false);
   stopScanner(); // camera off while a customer is open; it comes back on with the Find screen
   $('#results').innerHTML = ''; $('#scan-msg').textContent = '';
   const box = $('#cust');

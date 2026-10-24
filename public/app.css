@@ -107,12 +107,14 @@ tfoot td { font-weight: 700; border-top: 2px solid var(--border); border-bottom:
 .scan-area { position: relative; border-radius: var(--radius); overflow: hidden; background: #000; margin-bottom: 12px; }
 #reader { width: 100%; min-height: 240px; }
 #reader video { width: 100% !important; height: auto !important; display: block; }
-.hw-scan { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; margin-bottom: 10px; border: 2px dashed var(--border); border-radius: var(--radius); color: var(--muted); font-weight: 600; cursor: pointer; }
-.hw-scan.on { border-style: solid; border-color: var(--credit); background: var(--credit-bg); color: var(--credit); }
-.hw-scan .hw-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
-.hw-scan.on .hw-dot { background: var(--credit); animation: hw-pulse 1.4s ease-in-out infinite; }
-@keyframes hw-pulse { 50% { opacity: .35; } }
-#hw-scan { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; caret-color: transparent; pointer-events: none; }
+#hw-scan { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; min-height: 0; opacity: 0; border: 0; padding: 0; caret-color: transparent; pointer-events: none; }
+/* Find screen in handheld mode: the scanner box is a visible bar the driver taps once */
+body.hw-find #hw-scan { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: auto; height: 64px; opacity: 1; pointer-events: auto; z-index: 20;
+  border: 2px dashed var(--muted); border-radius: var(--radius); background: var(--surface); color: transparent; text-align: center; font: inherit; font-size: 1.1rem; font-weight: 700; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+body.hw-find #hw-scan::placeholder { color: var(--text-2); opacity: 1; }
+body.hw-find #hw-scan.on { border: 2px solid var(--credit); background: var(--credit-bg); outline: none; }
+body.hw-find #hw-scan.on::placeholder { color: var(--credit); }
+body.hw-find main { padding-bottom: 100px; }
 .mode-pick .btn.big { margin-top: 12px; min-height: 72px; font-size: 1.3rem; }
 .mode-line { text-align: center; margin: 12px 0 0; }
 .or { text-align: center; color: var(--muted); margin: 12px 0; font-size: .9rem; }
