@@ -188,14 +188,16 @@ function pageScan(customer) {
       <div id="find" class="card mode-pick">
         <h1>How will you scan?</h1>
         <p class="muted">Pick once. The app remembers it until you log out.</p>
-        <button class="btn primary big" data-mode="hw">Handheld scanner</button>
+        <label class="btn primary big" data-mode="hw" for="hw-scan">Handheld scanner</label>
         <button class="btn big" data-mode="cam">📷 Phone camera</button>
       </div>
       <div id="cust"></div>`;
+    // Handheld is a <label> for the scanner box: the device only types into a box focused by a real tap,
+    // so let the label's own tap focus it, then redraw once that has happened
     $$('[data-mode]').forEach((b) => b.onclick = () => {
       setScanMode(b.dataset.mode);
-      if (b.dataset.mode === 'hw') hwInput.focus({ preventScroll: true }); // focus from the tap itself, so the scanner types into it
-      pageScan();
+      if (b.dataset.mode === 'hw') hwArmed = true;
+      setTimeout(() => pageScan());
     });
     return;
   }
@@ -220,6 +222,10 @@ function pageScan(customer) {
   $('#scan-start').onclick = startScanner;
   $('#scan-switch').onclick = switchCamera;
   $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw(); };
+  // If the box already has focus (e.g. set from code), a tap wouldn't re-focus it and the scanner stays
+  // deaf, so drop focus first and let the tap focus it for real
+  $('#hw-wrap').onpointerdown = () => { if (document.activeElement === hwInput) hwInput.blur(); };
+  $('#hw-wrap').onclick = () => { hwArmed = true; setTimeout(hwState); };
   hwState();
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
@@ -258,12 +264,16 @@ document.body.append(hwInput);
 const hwSubmit = () => { clearTimeout(hwTimer); const v = hwInput.value.trim(); hwInput.value = ''; if (v && $('#find')) onHardwareScan(v); };
 hwInput.onkeydown = (e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); hwSubmit(); } };
 // Some scanners paste the whole code at once with no Enter; submit once the text stops arriving
-hwInput.oninput = () => { clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
-hwInput.onfocus = hwInput.onblur = () => hwState();
+hwInput.oninput = () => { hwArmed = true; clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
+hwInput.onfocus = () => hwState();
+hwInput.onblur = () => { hwArmed = false; hwState(); };
 
+// Focusing the box from code isn't enough on some scanners, so only show "ready" once it was focused
+// by a tap (or text has already arrived) and hasn't lost focus since
+let hwArmed = false;
 function hwState() {
   const wrap = $('#hw-wrap'); if (!wrap) return;
-  const on = document.activeElement === hwInput;
+  const on = document.activeElement === hwInput && hwArmed;
   wrap.classList.toggle('on', on);
   $('#hw-label').textContent = on ? 'Scanner ready: press the trigger' : 'Tap here to use the handheld scanner';
 }
