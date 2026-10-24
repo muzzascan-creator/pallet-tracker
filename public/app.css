@@ -115,7 +115,7 @@ tfoot td { font-weight: 700; border-top: 2px solid var(--border); border-bottom:
 #hw-scan { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; caret-color: transparent; pointer-events: none; }
 .or { text-align: center; color: var(--muted); margin: 12px 0; font-size: .9rem; }
 .cust-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
-.cust-name { font-size: 1.3rem; font-weight: 700; }
+.cust-name { font-size: 1.6rem; font-weight: 800; line-height: 1.15; }
 .balance-box { text-align: center; border-radius: var(--radius); padding: 16px; margin: 12px 0; background: var(--surface-2); }
 .balance-box.pos { background: var(--owe-bg); } .balance-box.neg { background: var(--credit-bg); }
 .balance-box .n { font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
@@ -263,7 +263,7 @@ main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   header#topbar { position: static; padding-top: 4px; padding-bottom: 4px; gap: 2px 10px; font-size: .9rem; }
   #nav a { padding: 4px 10px; }
   main.narrow .card { padding: 10px 12px; }
-  .cust-name { font-size: 1.1rem; }
+  .cust-name { font-size: 1.45rem; }
   .cust-head .btn.sm { min-height: 30px; }
   .balance-box { display: flex; align-items: baseline; justify-content: center; gap: 10px; padding: 6px 10px; margin: 8px 0; }
   .balance-box .n { font-size: 2rem; }
