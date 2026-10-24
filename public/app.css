@@ -169,6 +169,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
 /* phone: keep the app locked to the screen width, no sideways sliding or zoom-on-tap */
 html, body { overflow-x: hidden; max-width: 100%; touch-action: manipulation; }
+body { overflow-x: clip; } /* hidden would make body a scroll box and break sticky Save */
 input, select, textarea { font-size: 16px; }
 .stepper .ctl { grid-template-columns: 44px minmax(0, 1fr) 44px; }
 .stepper .ctl input { min-width: 0; padding: 6px 2px; }
@@ -252,3 +253,30 @@ main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 .saved-banner span { display: block; font-size: 1rem; font-weight: 600; margin-top: 4px; }
 @keyframes saved-in { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (max-width: 600px) { main.narrow .saved-banner { border-radius: 0; margin: 0 0 8px; } }
+
+/* Save and Complete stay on screen on phones even if the page has to scroll */
+@media (max-width: 600px) {
+  .move-actions { position: sticky; bottom: 0; z-index: 5; background: var(--surface); padding: 6px 0 max(6px, env(safe-area-inset-bottom)); }
+}
+/* Short screens (handheld scanners, small phones): compact the customer screen so Save fits without scrolling */
+@media (max-width: 600px) and (max-height: 760px) {
+  header#topbar { position: static; padding-top: 4px; padding-bottom: 4px; gap: 2px 10px; font-size: .9rem; }
+  #nav a { padding: 4px 10px; }
+  main.narrow .card { padding: 10px 12px; }
+  .cust-name { font-size: 1.1rem; }
+  .cust-head .btn.sm { min-height: 30px; }
+  .balance-box { display: flex; align-items: baseline; justify-content: center; gap: 10px; padding: 6px 10px; margin: 8px 0; }
+  .balance-box .n { font-size: 2rem; }
+  .balance-box .l { font-size: .9rem; }
+  .steppers { gap: 6px; margin-bottom: 4px; }
+  .stepper { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); align-items: center; gap: 6px; padding: 6px 8px; text-align: left; }
+  .stepper .t { font-size: 1.05rem; margin: 0; }
+  .stepper .ctl { grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 6px; }
+  .stepper .ctl button { height: 52px; font-size: 2rem; }
+  .stepper .ctl input { height: 52px; min-height: 0; font-size: 1.7rem; }
+  .after { margin: 2px 0 0; font-size: .9rem; }
+  .move-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #complete-move, #save-move { min-height: 56px; margin: 0; font-size: 1.15rem; }
+  #complete-move span { font-size: .7rem; }
+  .saved-banner { padding: 8px 12px; font-size: 1.3rem; }
+}
