@@ -272,10 +272,10 @@ main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   .stepper { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); align-items: center; gap: 6px; padding: 6px 8px; text-align: left; }
   .stepper .t { font-size: 1.05rem; margin: 0; }
   .stepper .ctl { grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 6px; }
-  .stepper .ctl button { height: 52px; font-size: 2rem; }
-  .stepper .ctl input { height: 52px; min-height: 0; font-size: 1.7rem; }
+  .stepper .ctl button { height: 50px; font-size: 2rem; }
+  .stepper .ctl input { height: 50px; min-height: 0; font-size: 1.7rem; }
   .after { margin: 2px 0 0; font-size: .9rem; }
-  .move-actions { display: grid; gap: 6px; }
+  .move-actions { display: grid; grid-auto-rows: 1fr; gap: 6px; padding-top: 4px; } /* Save as tall as Complete */
   #complete-move, #save-move { min-height: 54px; margin: 0; font-size: 1.2rem; }
   #complete-move span { font-size: .75rem; }
   .saved-banner { padding: 8px 12px; font-size: 1.3rem; }
