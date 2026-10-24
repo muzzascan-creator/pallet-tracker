@@ -182,7 +182,9 @@ function pageScan(customer) {
       <div id="scan-box" hidden><div class="scan-area"><div id="reader"></div></div>
         <div class="row"><button id="scan-switch" class="btn" hidden>Switch camera</button><button id="scan-stop" class="btn">Stop camera</button></div>
         <p class="small muted" style="text-align:center;margin:6px 0 0">Hold the barcode flat, about a hand's width from the camera. Blurry? Tap Switch camera.</p></div>
-      <button id="scan-start" class="btn primary big">📷 Scan barcode</button>
+      <label class="hw-scan" id="hw-wrap"><span class="hw-dot"></span><span id="hw-label">Scanner ready: press the trigger</span>
+        <input id="hw-scan" inputmode="none" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Handheld scanner input"></label>
+      <button id="scan-start" class="btn big">📷 Use phone camera</button>
       <div id="scan-msg" class="err"></div>
       <div class="or">or type a customer code or name</div>
       <form id="manual" class="row"><div><input id="q" placeholder="Code or name" autocomplete="off" autocapitalize="none"></div>
@@ -192,7 +194,8 @@ function pageScan(customer) {
     <div id="cust"></div>`;
   $('#scan-start').onclick = startScanner;
   $('#scan-switch').onclick = switchCamera;
-  $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; };
+  $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw(); };
+  bindHwBox();
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
     const q = $('#q').value.trim(); if (!q) return;
@@ -205,7 +208,64 @@ function pageScan(customer) {
     $$('#results li[data-id]').forEach((li) => li.onclick = () => loadCustomer(li.dataset.id));
   };
   if (customer) showCustomer(customer.customer, customer.recent);
+  else focusHw();
 }
+
+// ---------- handheld (hardware) barcode scanner ----------
+// Rugged scanners work like a keyboard: they "type" the barcode very fast, usually ending with Enter.
+// They need somewhere to type into, so the scan screen keeps a hidden box focused (inputmode=none
+// stops the on-screen keyboard popping up). A page-wide key listener also catches fast bursts when
+// nothing is focused, e.g. while a customer is open or the camera is running.
+const HW_GAP_MS = 60, HW_IDLE_MS = 150, HW_MIN_LEN = 3;
+let hwBuf = '', hwLast = 0, hwTimer = null;
+
+function focusHw() {
+  const box = $('#hw-scan'), find = $('#find');
+  if (box && find && !find.hidden && !modal.open) box.focus({ preventScroll: true });
+}
+
+function bindHwBox() {
+  const box = $('#hw-scan'), label = $('#hw-label'), wrap = $('#hw-wrap');
+  const submit = () => { clearTimeout(hwTimer); const v = box.value.trim(); box.value = ''; if (v) onHardwareScan(v); };
+  box.onkeydown = (e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); submit(); } };
+  // Some scanners paste the whole code at once with no Enter; submit once the text stops arriving
+  box.oninput = () => { clearTimeout(hwTimer); hwTimer = setTimeout(submit, HW_IDLE_MS); };
+  const state = () => {
+    const on = document.activeElement === box;
+    wrap.classList.toggle('on', on);
+    label.textContent = on ? 'Scanner ready: press the trigger' : 'Tap here to use the handheld scanner';
+  };
+  box.onfocus = state; box.onblur = state; state();
+}
+
+async function onHardwareScan(code) {
+  if (scanner) { await stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; }
+  if (navigator.vibrate) navigator.vibrate(80);
+  const findShown = !$('#find').hidden;
+  try { await lookupCode(code, true); }
+  catch (err) { if (findShown) $('#scan-msg').textContent = err.message; else toast(err.message, 4000); focusHw(); }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!me || !$('#find') || modal.open) return; // only on the scan screen
+  const t = e.target;
+  if (t.id === 'hw-scan' || t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return; // a real field takes the keys
+  if (e.key === 'Enter' || e.key === 'Tab') {
+    if (hwBuf.length >= HW_MIN_LEN) { e.preventDefault(); e.stopPropagation(); flushHw(); } else hwBuf = '';
+    return;
+  }
+  if (e.key.length !== 1 || e.ctrlKey || e.altKey || e.metaKey) return;
+  const now = performance.now();
+  if (now - hwLast > HW_GAP_MS) hwBuf = ''; // too slow for a scanner: start again
+  hwBuf += e.key; hwLast = now;
+  clearTimeout(hwTimer); hwTimer = setTimeout(flushHw, HW_IDLE_MS);
+}, true);
+function flushHw() {
+  clearTimeout(hwTimer);
+  const code = hwBuf.trim(); hwBuf = '';
+  if (code.length >= HW_MIN_LEN && $('#find')) onHardwareScan(code);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) focusHw(); });
 
 // Android phones often open a low-resolution or wide-angle camera that can't read 1D barcodes.
 // Ask for a sharp, auto-focusing back camera, read only the barcode types we use, and let the
@@ -225,7 +285,7 @@ async function startScanner() {
   const onRead = async (text) => {
     if (!scanner) return;
     await stopScanner();
-    $('#scan-box').hidden = true; $('#scan-start').hidden = false;
+    $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw();
     if (navigator.vibrate) navigator.vibrate(80);
     try { await lookupCode(text.trim()); } catch (err) { msg.textContent = err.message; }
   };
@@ -294,7 +354,7 @@ function showCustomer(c, recent, savedIds) {
     </div>
     ${me.role === 'admin' ? `<div class="card"><h3>Recent for this customer</h3>${entryList(recent, true)}</div>` : ''}`;
   // While a customer is open, hide the Find customer box; bring it back when they close it
-  const backToFind = () => { box.innerHTML = ''; $('#find').hidden = false; window.scrollTo({ top: 0 }); };
+  const backToFind = () => { box.innerHTML = ''; $('#find').hidden = false; window.scrollTo({ top: 0 }); focusHw(); };
   $('#find').hidden = true; window.scrollTo({ top: 0 });
   $('#clear-cust').onclick = backToFind;
   bindUndo(box, () => loadCustomer(c.id));

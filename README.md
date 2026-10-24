@@ -24,6 +24,16 @@ Browsers only allow the camera on **https** pages (or `localhost`). Host the app
 (any host with a persistent disk, or a tunnel such as Cloudflare Tunnel for testing).
 If scanning isn't possible, operators can type a code or search by name.
 
+## Handheld barcode scanner
+
+Rugged Android scanners that act as a keyboard ("keyboard wedge" / "keyboard emulation", the usual
+factory setting) work on the Scan screen with no setup: open Scan, check the box says
+**Scanner ready**, and press the trigger. If it says *Tap here to use the handheld scanner*, tap it.
+Codes with or without a trailing Enter are both accepted. The phone camera is still there as a fallback.
+
+If nothing happens, the scanner is probably set to *broadcast / intent* output, which only native apps
+can receive. Switch its output mode to keyboard in the scanner's settings app.
+
 ## How balances work
 
 Every entry is a line in a ledger:
