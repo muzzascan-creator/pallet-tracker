@@ -89,7 +89,7 @@ function showLogin(msg = '') {
     e.preventDefault();
     const btn = e.submitter; busy(btn, true);
     try {
-      const { user } = await api('POST', '/api/login', formData(e.target));
+      const { user } = await api('POST', '/api/login', formData(e.target)); setScanMode(null); // ask again on every login
       me = user; await boot();
     } catch (err) { $('.err', e.target).textContent = err.message; busy(btn, false); }
   };
@@ -121,7 +121,7 @@ function showChangePassword(forced) {
   };
 }
 
-$('#logout').onclick = async () => { await api('POST', '/api/logout').catch(() => {}); me = null; location.hash = ''; showLogin(); };
+$('#logout').onclick = async () => { setScanMode(null); await api('POST', '/api/logout').catch(() => {}); me = null; location.hash = ''; showLogin(); };
 
 // ---------- navigation ----------
 const NAV = {
@@ -174,27 +174,68 @@ async function boot() {
 let scanner = null;
 async function stopScanner() {
   if (scanner) { const s = scanner; scanner = null; try { if (s.isScanning) await s.stop(); s.clear(); } catch {} }
+  releaseCamera();
 }
+// Remember every camera stream the page opens, so the camera can always be switched off, even when the
+// scanner library lost track of it (e.g. the screen changed while it was starting). A camera left on
+// in the background stops the handheld scanner's trigger from working.
+const camStreams = new Set();
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+  const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = async (c) => { const st = await gum(c); camStreams.add(st); return st; };
+}
+function releaseCamera() { for (const st of camStreams) st.getTracks().forEach((t) => t.stop()); camStreams.clear(); }
+
+// How this operator scans (handheld scanner or phone camera): asked once after login, kept until logout
+const MODE_KEY = 'scanMode';
+function getScanMode() { try { return sessionStorage.getItem(MODE_KEY); } catch { return null; } }
+function setScanMode(m) { try { m ? sessionStorage.setItem(MODE_KEY, m) : sessionStorage.removeItem(MODE_KEY); } catch {} }
 
 function pageScan(customer) {
+  const mode = getScanMode();
+  if (!mode && !customer) {
+    view.innerHTML = `
+      <div id="find" class="card mode-pick">
+        <h1>How will you scan?</h1>
+        <p class="muted">Pick once. The app remembers it until you log out.</p>
+        <label class="btn primary big" data-mode="hw" for="hw-scan">Handheld scanner</label>
+        <button class="btn big" data-mode="cam">📷 Phone camera</button>
+      </div>
+      <div id="cust"></div>`;
+    // Handheld is a <label> for the scanner box: the device only types into a box focused by a real tap,
+    // so let the label's own tap focus it, then redraw once that has happened
+    $$('[data-mode]').forEach((b) => b.onclick = () => {
+      setScanMode(b.dataset.mode);
+      if (b.dataset.mode === 'hw') hwArmed = true;
+      setTimeout(() => pageScan());
+    });
+    return;
+  }
+  const cam = mode === 'cam';
   view.innerHTML = `
     <div id="find" class="card">
       <h1>Find customer</h1>
       <div id="scan-box" hidden><div class="scan-area"><div id="reader"></div></div>
         <div class="row"><button id="scan-switch" class="btn" hidden>Switch camera</button><button id="scan-stop" class="btn">Stop camera</button></div>
         <p class="small muted" style="text-align:center;margin:6px 0 0">Hold the barcode flat, about a hand's width from the camera. Blurry? Tap Switch camera.</p></div>
-      <label class="hw-scan" id="hw-wrap" for="hw-scan"><span class="hw-dot"></span><span id="hw-label">Scanner ready: press the trigger</span></label>
-      <button id="scan-start" class="btn big">📷 Use phone camera</button>
+      <label class="hw-scan" id="hw-wrap" for="hw-scan"${cam ? ' hidden' : ''}><span class="hw-dot"></span><span id="hw-label">Scanner ready: press the trigger</span></label>
+      <button id="scan-start" class="btn primary big"${cam ? '' : ' hidden'}>📷 Open camera</button>
       <div id="scan-msg" class="err"></div>
       <div class="or">or type a customer code or name</div>
       <form id="manual" class="row"><div><input id="q" placeholder="Code or name" autocomplete="off" autocapitalize="none"></div>
         <button class="btn grow-0">Search</button></form>
       <ul id="results" class="results"></ul>
+      <p class="small muted mode-line">Using ${cam ? 'phone camera' : 'handheld scanner'} · <button class="link" id="scan-mode">Change</button></p>
     </div>
     <div id="cust"></div>`;
+  $('#scan-mode').onclick = () => { stopScanner(); hwInput.blur(); setScanMode(null); pageScan(); };
   $('#scan-start').onclick = startScanner;
   $('#scan-switch').onclick = switchCamera;
   $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw(); };
+  // If the box already has focus (e.g. set from code), a tap wouldn't re-focus it and the scanner stays
+  // deaf, so drop focus first and let the tap focus it for real
+  $('#hw-wrap').onpointerdown = () => { if (document.activeElement === hwInput) hwInput.blur(); };
+  $('#hw-wrap').onclick = () => { hwArmed = true; setTimeout(hwState); };
   hwState();
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
@@ -208,6 +249,12 @@ function pageScan(customer) {
     $$('#results li[data-id]').forEach((li) => li.onclick = () => loadCustomer(li.dataset.id));
   };
   if (customer) showCustomer(customer.customer, customer.recent);
+  else resumeScan();
+}
+
+// Back on the Find screen: get the chosen scanner listening again
+function resumeScan() {
+  if (getScanMode() === 'cam') { if (!scanner) startScanner(); }
   else focusHw();
 }
 
@@ -227,16 +274,21 @@ document.body.append(hwInput);
 const hwSubmit = () => { clearTimeout(hwTimer); const v = hwInput.value.trim(); hwInput.value = ''; if (v && $('#find')) onHardwareScan(v); };
 hwInput.onkeydown = (e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); hwSubmit(); } };
 // Some scanners paste the whole code at once with no Enter; submit once the text stops arriving
-hwInput.oninput = () => { clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
-hwInput.onfocus = hwInput.onblur = () => hwState();
+hwInput.oninput = () => { hwArmed = true; clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
+hwInput.onfocus = () => hwState();
+hwInput.onblur = () => { hwArmed = false; hwState(); };
 
+// Focusing the box from code isn't enough on some scanners, so only show "ready" once it was focused
+// by a tap (or text has already arrived) and hasn't lost focus since
+let hwArmed = false;
 function hwState() {
   const wrap = $('#hw-wrap'); if (!wrap) return;
-  const on = document.activeElement === hwInput;
+  const on = document.activeElement === hwInput && hwArmed;
   wrap.classList.toggle('on', on);
   $('#hw-label').textContent = on ? 'Scanner ready: press the trigger' : 'Tap here to use the handheld scanner';
 }
 function focusHw() {
+  if (getScanMode() === 'cam') return;
   if ($('#find') && !modal.open && document.activeElement !== hwInput) hwInput.focus({ preventScroll: true });
 }
 
@@ -272,7 +324,13 @@ function flushHw() {
   const code = hwBuf.trim(); hwBuf = '';
   if (code.length >= HW_MIN_LEN && $('#find')) onHardwareScan(code);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) focusHw(); });
+// Never leave the camera on in the background (it blocks the handheld scanner): off when the app is
+// hidden or closed, back on when it returns in camera mode
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (scanner) { stopScanner(); const b = $('#scan-box'); if (b) { b.hidden = true; $('#scan-start').hidden = false; } } }
+  else if (me && $('#find') && !$('#find').hidden) resumeScan();
+});
+window.addEventListener('pagehide', () => stopScanner());
 
 // Android phones often open a low-resolution or wide-angle camera that can't read 1D barcodes.
 // Ask for a sharp, auto-focusing back camera, read only the barcode types we use, and let the
@@ -287,10 +345,12 @@ async function startScanner() {
   if (!window.Html5Qrcode) { msg.textContent = 'Scanner did not load. Type the code instead.'; return; }
   await stopScanner();
   $('#scan-box').hidden = false; $('#scan-start').hidden = true;
-  scanner = new Html5Qrcode('reader', { verbose: false, formatsToSupport: SCAN_FORMATS(), experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+  // Keep our own handle: if the camera is stopped (Save, Change, leaving the page) while it is still
+  // starting, it must still be switched off once it comes up, or it stays on and blocks the handheld scanner
+  const s = scanner = new Html5Qrcode('reader', { verbose: false, formatsToSupport: SCAN_FORMATS(), experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
   const box = (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(Math.min(h * 0.6, w * 0.5)) });
   const onRead = async (text) => {
-    if (!scanner) return;
+    if (scanner !== s) return;
     await stopScanner();
     $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw();
     if (navigator.vibrate) navigator.vibrate(80);
@@ -300,14 +360,16 @@ async function startScanner() {
   const sharp = { ...cam, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] };
   const cfg = (vc) => ({ fps: 15, qrbox: box, videoConstraints: vc });
   try {
-    try { await scanner.start(cam, cfg(sharp), onRead); }
+    try { await s.start(cam, cfg(sharp), onRead); }
     catch (err) { // some phones refuse the extra settings; try again with just the camera
-      if (/permission|notallowed/i.test(String(err))) throw err;
-      try { if (scanner.isScanning) await scanner.stop(); } catch {}
-      await scanner.start(cam, cfg(cam), onRead);
+      if (/permission|notallowed/i.test(String(err)) || scanner !== s) throw err;
+      try { if (s.isScanning) await s.stop(); } catch {}
+      await s.start(cam, cfg(cam), onRead);
     }
+    if (scanner !== s) { try { if (s.isScanning) await s.stop(); s.clear(); } catch {} if (!scanner) releaseCamera(); return; } // stopped while starting
     $('#scan-switch').hidden = false;
   } catch (err) {
+    if (scanner !== s) { try { if (s.isScanning) await s.stop(); s.clear(); } catch {} if (!scanner) releaseCamera(); return; }
     await stopScanner();
     $('#scan-box').hidden = true; $('#scan-start').hidden = false;
     msg.textContent = /permission|notallowed/i.test(String(err)) ? 'Camera permission was refused. Allow camera access in your browser settings.' : 'Could not start the camera: ' + err;
@@ -338,6 +400,7 @@ async function lookupCode(code, quiet) {
 async function loadCustomer(id) { const r = await api('GET', '/api/customers/' + id); showCustomer(r.customer, r.recent); }
 
 function showCustomer(c, recent, savedIds) {
+  stopScanner(); // camera off while a customer is open; it comes back on with the Find screen
   $('#results').innerHTML = ''; $('#scan-msg').textContent = '';
   const box = $('#cust');
   box.innerHTML = `
@@ -363,7 +426,7 @@ function showCustomer(c, recent, savedIds) {
     </div>
     ${me.role === 'admin' ? `<div class="card"><h3>Recent for this customer</h3>${entryList(recent, true)}</div>` : ''}`;
   // While a customer is open, hide the Find customer box; bring it back when they close it
-  const backToFind = () => { box.innerHTML = ''; $('#find').hidden = false; window.scrollTo({ top: 0 }); focusHw(); };
+  const backToFind = () => { box.innerHTML = ''; $('#find').hidden = false; window.scrollTo({ top: 0 }); resumeScan(); };
   $('#find').hidden = true; window.scrollTo({ top: 0 });
   $('#clear-cust').onclick = backToFind;
   bindUndo(box, () => loadCustomer(c.id));
