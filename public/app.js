@@ -753,13 +753,13 @@ async function pageLabels() {
 
 // ---------- admin: entries ----------
 async function pageEntries() {
-  const now = new Date(), from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const today = ymd(new Date());
   const [{ customers }, { users }] = await Promise.all([api('GET', '/api/customers?all=1'), api('GET', '/api/admin/users')]);
   view.innerHTML = `
     <div class="toolbar"><h1 style="margin:0">Entries</h1><span class="spacer"></span><button class="btn" id="e-csv">Export CSV</button><button class="btn" onclick="window.print()">Print</button></div>
     <div class="card no-print"><form id="ef" class="row">
-      <div><label>From</label><input type="date" name="from" value="${ymd(from)}"></div>
-      <div><label>To</label><input type="date" name="to" value="${ymd(now)}"></div>
+      <div><label>From</label><input type="date" name="from" value="${today}"></div>
+      <div><label>To</label><input type="date" name="to" value="${today}"></div>
       <div><label>Customer</label><select name="customer_id"><option value="">All customers</option>${customers.sort((a, b) => a.name.localeCompare(b.name)).map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
       <div><label>Operator</label><select name="user_id"><option value="">Everyone</option>${users.map((u) => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
       <div><label>Type</label><select name="type"><option value="">All</option><option value="delivered">Delivered</option><option value="collected">Picked up</option><option value="adjust">Adjustments</option></select></div>
