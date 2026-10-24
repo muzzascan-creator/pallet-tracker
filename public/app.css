@@ -253,7 +253,8 @@ body.dev-scanner { overflow-x: clip; } /* hidden would make body a scroll box an
 body.dev-scanner #q { min-height: 56px; font-size: 1.2rem; border: 2px dashed var(--muted); }
 body.dev-scanner #q.on { border: 2px solid var(--credit); background: var(--credit-bg); outline: none; }
 /* Customer open: Find box shrunk out of sight but still focused (see findShow) */
-#find.parked { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; margin: 0; padding: 0; border: 0; pointer-events: none; }
+/* (kept full size: in a 1px box the browser put scanned characters in the wrong order) */
+#find.parked { position: fixed; left: 0; right: 0; top: 0; opacity: 0; pointer-events: none; z-index: -1; }
 body.dev-scanner header#topbar { position: static; padding-top: 4px; padding-bottom: 4px; gap: 2px 10px; font-size: .9rem; }
 body.dev-scanner #nav a { padding: 4px 10px; }
 body.dev-scanner main.narrow .card { padding: 10px 12px; }
