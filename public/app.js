@@ -71,7 +71,7 @@ function busy(btn, on) { if (btn) { btn.disabled = on; } }
 
 // ---------- auth ----------
 function showLogin(msg = '') {
-  stopScanner();
+  stopScanner(); document.body.classList.remove('dev-scanner');
   $('#topbar').hidden = true;
   view.className = '';
   view.innerHTML = `
@@ -137,7 +137,7 @@ function renderNav(page) {
 }
 
 const PAGES = {
-  scan: () => pageScan(), owing: () => pageOwing(), mine: () => pageMine(), password: () => showChangePassword(false),
+  scan: () => isScannerUser() ? pageScanHw() : pageScan(), owing: () => pageOwing(), mine: () => pageMine(), password: () => showChangePassword(false),
   dashboard: () => pageDashboard(), customers: () => pageCustomers(), entries: () => pageEntries(),
   reports: () => pageReports(), users: () => pageUsers(), labels: () => pageLabels(), recon: () => pageRecon(),
 };
@@ -154,6 +154,7 @@ function route() {
   let page = (location.hash.match(/^#\/(\w+)/) || [])[1];
   if (!PAGES[page] || (ADMIN_ONLY.has(page) && me.role !== 'admin')) { page = home().slice(2); history.replaceState(null, '', home()); }
   renderNav(page);
+  document.body.classList.toggle('dev-scanner', isScannerUser());
   view.className = ['scan', 'mine', 'owing', 'password'].includes(page) ? 'narrow' : '';
   PAGES[page]();
   if (page === 'dashboard') dashTimer = setInterval(() => {
@@ -205,6 +206,63 @@ function pageScan(customer) {
     $$('#results li[data-id]').forEach((li) => li.onclick = () => loadCustomer(li.dataset.id));
   };
   if (customer) showCustomer(customer.customer, customer.recent);
+}
+
+// ---------- scan screen for handheld scanner users (Users > Device = Scanner) ----------
+// The scanner is a keyboard wedge: once the driver taps a text box, a trigger pull drops the whole
+// code into it in one go, with no Enter. It only types into a box the driver tapped (focus set from
+// code doesn't count), so this screen keeps that one box focused for the whole shift: it is never
+// hidden or rebuilt while a customer is open, and taps on buttons don't take focus from it.
+// No camera code runs here.
+const isScannerUser = () => !!me && me.device === 'scanner';
+function pageScanHw() {
+  view.innerHTML = `
+    <div id="find" class="card">
+      <h1>Find customer</h1>
+      <p class="hw-help" id="hw-help">Tap the box once, then press the scanner trigger</p>
+      <div id="scan-msg" class="err"></div>
+      <form id="manual" class="row"><div><input id="q" placeholder="Tap here, then scan" autocomplete="off" autocapitalize="none" inputmode="none"></div>
+        <button class="btn grow-0">Search</button></form>
+      <p class="small" style="margin:6px 0 0"><button class="link" id="type-name" type="button">⌨ Type a name instead</button></p>
+      <ul id="results" class="results"></ul>
+    </div>
+    <div id="cust"></div>`;
+  const q = $('#q'); let qLen = 0, qTimer = null;
+  const ready = () => { const on = document.activeElement === q; q.classList.toggle('on', on); $('#hw-help').textContent = on ? '● Scanner ready: press the trigger' : 'Tap the box once, then press the scanner trigger'; };
+  q.onfocus = ready; q.onblur = ready;
+  // A scan lands as one chunk of 3+ characters; typing by hand arrives one character at a time
+  q.addEventListener('input', (e) => {
+    const len = q.value.length, jump = len - qLen; qLen = len;
+    if (!/^insert/.test(e.inputType || 'insert') || jump < 3) return;
+    clearTimeout(qTimer);
+    qTimer = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(80); $('#manual').requestSubmit(); }, 150);
+  });
+  // No on-screen keyboard on the box (it would cover Save); this brings it back for typing a name
+  $('#type-name').onclick = () => { q.inputMode = 'text'; q.blur(); q.focus(); };
+  $('#manual').onsubmit = async (e) => {
+    e.preventDefault();
+    const text = q.value.trim(); q.value = ''; qLen = 0; q.inputMode = 'none';
+    if (!text) return;
+    const parked = $('#find').classList.contains('parked'); // a customer is open: a scan replaces them
+    if (!parked) $('#cust').innerHTML = '';
+    try { return await lookupCode(text, true); } catch (err) { if (parked) return toast(err.message, 5000); }
+    const { customers } = await api('GET', '/api/customers?q=' + encodeURIComponent(text));
+    $('#results').innerHTML = customers.length ? customers.slice(0, 20).map((c) =>
+      `<li data-id="${c.id}"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}">${fmt(c.balance)}</span></li>`).join('')
+      : '<li class="muted">No customers match</li>';
+    $$('#results li[data-id]').forEach((li) => li.onclick = () => loadCustomer(li.dataset.id));
+  };
+}
+// Keep the scanner box focused when a button is tapped (the tap itself still works)
+document.addEventListener('mousedown', (e) => {
+  const a = document.activeElement;
+  if (a && a.id === 'q' && a.inputMode === 'none' && !e.target.closest('input, textarea, select, [contenteditable]')) e.preventDefault();
+}, true);
+// Hide or show the Find box while a customer is open. For scanner users it is shrunk out of sight
+// instead of hidden, because hiding it would drop the focus the driver's tap gave the scan box.
+function findShow(show) {
+  if (isScannerUser()) $('#find').classList.toggle('parked', !show);
+  else $('#find').hidden = !show;
 }
 
 // Android phones often open a low-resolution or wide-angle camera that can't read 1D barcodes.
@@ -287,15 +345,19 @@ function showCustomer(c, recent, savedIds) {
           ${stepper('collected', 'Picking up', 'c')}
         </div>
         <div class="after" id="after"></div>
-        <button type="button" class="btn big" id="complete-move">Complete<span>1 delivered + 1 picked up</span></button>
+        ${isScannerUser() ? `<div class="err"></div>
+        <div class="move-actions">
+          <button type="button" class="btn big" id="complete-move">Complete<span>1 delivered + 1 picked up</span></button>
+          <button class="btn primary big" id="save-move">Save</button>
+        </div>` : `<button type="button" class="btn big" id="complete-move">Complete<span>1 delivered + 1 picked up</span></button>
         <div class="err"></div>
-        <button class="btn primary big" id="save-move">Save</button>
+        <button class="btn primary big" id="save-move">Save</button>`}
       </form>` : '<p class="err">This customer is marked inactive. Ask an admin.</p>'}
     </div>
     ${me.role === 'admin' ? `<div class="card"><h3>Recent for this customer</h3>${entryList(recent, true)}</div>` : ''}`;
   // While a customer is open, hide the Find customer box; bring it back when they close it
-  const backToFind = () => { box.innerHTML = ''; $('#find').hidden = false; window.scrollTo({ top: 0 }); };
-  $('#find').hidden = true; window.scrollTo({ top: 0 });
+  const backToFind = () => { box.innerHTML = ''; findShow(true); window.scrollTo({ top: 0 }); };
+  findShow(false); window.scrollTo({ top: 0 });
   $('#clear-cust').onclick = backToFind;
   bindUndo(box, () => loadCustomer(c.id));
   if (savedIds) {
@@ -324,7 +386,9 @@ function showCustomer(c, recent, savedIds) {
       toast(`Saved. ${r.customer.name} ${balanceText(r.customer.balance)}.`, 4000);
       if (me.role === 'admin') showCustomer(r.customer, r.recent, r.ids);
       else { // drivers go straight back to a fresh scan screen, with a big "Saved" banner so they know it worked
-        pageScan(); window.scrollTo({ top: 0 });
+        if (isScannerUser()) { box.innerHTML = ''; findShow(true); $('#saved-banner')?.remove(); } // same box, so it stays listening
+        else pageScan();
+        window.scrollTo({ top: 0 });
         const what = [f.delivered > 0 && `${fmt(f.delivered)} delivered`, f.collected > 0 && `${fmt(f.collected)} picked up`].filter(Boolean).join(' + ');
         $('#find').insertAdjacentHTML('beforebegin', `<div class="saved-banner" id="saved-banner">✓ Saved<span>${esc(r.customer.name)}: ${what}</span><span>Now ${balanceText(r.customer.balance)}</span></div>`);
         if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
