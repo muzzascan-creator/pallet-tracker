@@ -221,14 +221,19 @@ function pageScanHw() {
       <h1>Find customer</h1>
       <p class="hw-help" id="hw-help">Tap the box once, then press the scanner trigger</p>
       <div id="scan-msg" class="err"></div>
-      <form id="manual" class="row"><div><input id="q" placeholder="Tap here, then scan" autocomplete="off" autocapitalize="none"></div>
-        <button class="btn grow-0">Search</button></form>
+      <form id="manual" class="row"><div><input id="q" placeholder="Tap, then scan" autocomplete="off" autocapitalize="none" virtualkeyboardpolicy="manual"></div>
+        <button type="button" class="btn grow-0" id="kb" title="Keyboard" hidden>⌨</button><button class="btn grow-0">Search</button></form>
       <ul id="results" class="results"></ul>
     </div>
     <div id="cust"></div>`;
   const q = $('#q'); let qLen = 0, qTimer = null;
   const ready = () => { const on = document.activeElement === q; q.classList.toggle('on', on); $('#hw-help').textContent = on ? '● Scanner ready: press the trigger' : 'Tap the box once, then press the scanner trigger'; };
-  q.onfocus = ready; q.onblur = ready;
+  q.onfocus = () => { ready(); hideKb(); }; q.onblur = ready;
+  // The keyboard stays closed (the scanner types fine without it); ⌨ opens it to type a name
+  if (navigator.virtualKeyboard) {
+    $('#kb').hidden = false;
+    $('#kb').onclick = () => { if (document.activeElement !== q) q.focus(); navigator.virtualKeyboard.show(); };
+  }
   // A scan lands as one chunk of 3+ characters; typing by hand arrives one character at a time.
   // (The box is a plain text box on purpose: with the on-screen keyboard switched off
   // (inputmode=none) this scanner's typing stopped reaching it.)
@@ -242,6 +247,7 @@ function pageScanHw() {
     e.preventDefault();
     clearTimeout(qTimer);
     const text = q.value.replace(/[\x00-\x1f\x7f]/g, '').trim(); q.value = ''; qLen = 0; // scanners can add hidden control characters
+    hideKb();
     if (!text) return;
     const parked = $('#find').classList.contains('parked'); // a customer is open: a scan replaces them
     if (!parked) $('#cust').innerHTML = '';
@@ -265,8 +271,12 @@ document.addEventListener('mousedown', (e) => {
 }, true);
 // Hide or show the Find box while a customer is open. For scanner users it is shrunk out of sight
 // instead of hidden, because hiding it would drop the focus the driver's tap gave the scan box.
+// Close the on-screen keyboard but keep the box focused. This is not inputmode=none, which stopped
+// the scanner's typing arriving; the box keeps its normal keyboard, just closed, and the scanner
+// was tested working like that (keyboard closed with Back). Chrome only; elsewhere it does nothing.
+const hideKb = () => { try { navigator.virtualKeyboard?.hide(); } catch {} };
 function findShow(show) {
-  if (isScannerUser()) $('#find').classList.toggle('parked', !show);
+  if (isScannerUser()) { $('#find').classList.toggle('parked', !show); hideKb(); }
   else $('#find').hidden = !show;
 }
 
