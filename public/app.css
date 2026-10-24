@@ -107,21 +107,9 @@ tfoot td { font-weight: 700; border-top: 2px solid var(--border); border-bottom:
 .scan-area { position: relative; border-radius: var(--radius); overflow: hidden; background: #000; margin-bottom: 12px; }
 #reader { width: 100%; min-height: 240px; }
 #reader video { width: 100% !important; height: auto !important; display: block; }
-#hw-scan { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; min-height: 0; opacity: 0; border: 0; padding: 0; caret-color: transparent; pointer-events: none; }
-/* Find screen in handheld mode: the scanner box is a visible bar the driver taps once */
-body.hw-find #hw-scan { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: auto; height: 64px; opacity: 1; pointer-events: auto; z-index: 20;
-  border: 2px dashed var(--muted); border-radius: var(--radius); background: var(--surface); color: var(--credit); text-align: center; font: inherit; font-size: 1.1rem; font-weight: 700; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
-body.hw-find #hw-scan::placeholder { color: var(--text-2); opacity: 1; }
-body.hw-find #hw-scan.on { border: 2px solid var(--credit); background: var(--credit-bg); outline: none; }
-body.hw-find #hw-scan.on::placeholder { color: var(--credit); }
-body.hw-find main { padding-bottom: 100px; }
-.mode-pick .btn.big { margin-top: 12px; min-height: 72px; font-size: 1.3rem; }
-.mode-line { text-align: center; margin: 12px 0 0; }
-/* Handheld mode with a customer open: Find box shrunk out of sight but still focused (see findShow) */
-#find.parked { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; margin: 0; padding: 0; border: 0; pointer-events: none; }
 .or { text-align: center; color: var(--muted); margin: 12px 0; font-size: .9rem; }
 .cust-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
-.cust-name { font-size: 1.6rem; font-weight: 800; line-height: 1.15; }
+.cust-name { font-size: 1.3rem; font-weight: 700; }
 .balance-box { text-align: center; border-radius: var(--radius); padding: 16px; margin: 12px 0; background: var(--surface-2); }
 .balance-box.pos { background: var(--owe-bg); } .balance-box.neg { background: var(--credit-bg); }
 .balance-box .n { font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
@@ -175,7 +163,6 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
 /* phone: keep the app locked to the screen width, no sideways sliding or zoom-on-tap */
 html, body { overflow-x: hidden; max-width: 100%; touch-action: manipulation; }
-body { overflow-x: clip; } /* hidden would make body a scroll box and break sticky Save */
 input, select, textarea { font-size: 16px; }
 .stepper .ctl { grid-template-columns: 44px minmax(0, 1fr) 44px; }
 .stepper .ctl input { min-width: 0; padding: 6px 2px; }
@@ -259,30 +246,3 @@ main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 .saved-banner span { display: block; font-size: 1rem; font-weight: 600; margin-top: 4px; }
 @keyframes saved-in { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (max-width: 600px) { main.narrow .saved-banner { border-radius: 0; margin: 0 0 8px; } }
-
-/* Save and Complete stay on screen on phones even if the page has to scroll */
-@media (max-width: 600px) {
-  .move-actions { position: sticky; bottom: 0; z-index: 5; background: var(--surface); padding: 6px 0 max(6px, env(safe-area-inset-bottom)); }
-}
-/* Short screens (handheld scanners, small phones): compact the customer screen so Save fits without scrolling */
-@media (max-width: 600px) and (max-height: 760px) {
-  header#topbar { position: static; padding-top: 4px; padding-bottom: 4px; gap: 2px 10px; font-size: .9rem; }
-  #nav a { padding: 4px 10px; }
-  main.narrow .card { padding: 10px 12px; }
-  .cust-name { font-size: 1.45rem; }
-  .cust-head .btn.sm { min-height: 30px; }
-  .balance-box { padding: 6px 10px; margin: 8px 0; }
-  .balance-box .n { font-size: 2.6rem; }
-  .balance-box .l { font-size: .9rem; }
-  .steppers { gap: 6px; margin-bottom: 4px; }
-  .stepper { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); align-items: center; gap: 6px; padding: 6px 8px; text-align: left; }
-  .stepper .t { font-size: 1.05rem; margin: 0; }
-  .stepper .ctl { grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 6px; }
-  .stepper .ctl button { height: 50px; font-size: 2rem; }
-  .stepper .ctl input { height: 50px; min-height: 0; font-size: 1.7rem; }
-  .after { margin: 2px 0 0; font-size: .9rem; }
-  .move-actions { display: grid; grid-auto-rows: 1fr; gap: 6px; padding-top: 4px; } /* Save as tall as Complete */
-  #complete-move, #save-move { min-height: 54px; margin: 0; font-size: 1.2rem; }
-  #complete-move span { font-size: .75rem; }
-  .saved-banner { padding: 8px 12px; font-size: 1.3rem; }
-}
