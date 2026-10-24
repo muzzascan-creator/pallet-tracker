@@ -89,7 +89,7 @@ function showLogin(msg = '') {
     e.preventDefault();
     const btn = e.submitter; busy(btn, true);
     try {
-      const { user } = await api('POST', '/api/login', formData(e.target)); setScanMode(null); // ask again on every login
+      const { user } = await api('POST', '/api/login', formData(e.target));
       me = user; await boot();
     } catch (err) { $('.err', e.target).textContent = err.message; busy(btn, false); }
   };
@@ -121,7 +121,7 @@ function showChangePassword(forced) {
   };
 }
 
-$('#logout').onclick = async () => { setScanMode(null); await api('POST', '/api/logout').catch(() => {}); me = null; location.hash = ''; showLogin(); };
+$('#logout').onclick = async () => { await api('POST', '/api/logout').catch(() => {}); me = null; location.hash = ''; showLogin(); };
 
 // ---------- navigation ----------
 const NAV = {
@@ -176,56 +176,25 @@ async function stopScanner() {
   if (scanner) { const s = scanner; scanner = null; try { if (s.isScanning) await s.stop(); s.clear(); } catch {} }
 }
 
-// How this operator scans (handheld scanner or phone camera): asked once after login, kept until logout
-const MODE_KEY = 'scanMode';
-function getScanMode() { try { return sessionStorage.getItem(MODE_KEY); } catch { return null; } }
-function setScanMode(m) { try { m ? sessionStorage.setItem(MODE_KEY, m) : sessionStorage.removeItem(MODE_KEY); } catch {} }
-
 function pageScan(customer) {
-  const mode = getScanMode();
-  if (!mode && !customer) {
-    view.innerHTML = `
-      <div id="find" class="card mode-pick">
-        <h1>How will you scan?</h1>
-        <p class="muted">Pick once. The app remembers it until you log out.</p>
-        <label class="btn primary big" data-mode="hw" for="hw-scan">Handheld scanner</label>
-        <button class="btn big" data-mode="cam">📷 Phone camera</button>
-      </div>
-      <div id="cust"></div>`;
-    // Handheld is a <label> for the scanner box: the device only types into a box focused by a real tap,
-    // so let the label's own tap focus it, then redraw once that has happened
-    $$('[data-mode]').forEach((b) => b.onclick = () => {
-      setScanMode(b.dataset.mode);
-      if (b.dataset.mode === 'hw') hwArmed = true;
-      setTimeout(() => pageScan());
-    });
-    return;
-  }
-  const cam = mode === 'cam';
   view.innerHTML = `
     <div id="find" class="card">
       <h1>Find customer</h1>
       <div id="scan-box" hidden><div class="scan-area"><div id="reader"></div></div>
         <div class="row"><button id="scan-switch" class="btn" hidden>Switch camera</button><button id="scan-stop" class="btn">Stop camera</button></div>
         <p class="small muted" style="text-align:center;margin:6px 0 0">Hold the barcode flat, about a hand's width from the camera. Blurry? Tap Switch camera.</p></div>
-      <label class="hw-scan" id="hw-wrap" for="hw-scan"${cam ? ' hidden' : ''}><span class="hw-dot"></span><span id="hw-label">Scanner ready: press the trigger</span></label>
-      <button id="scan-start" class="btn primary big"${cam ? '' : ' hidden'}>📷 Open camera</button>
+      <label class="hw-scan" id="hw-wrap" for="hw-scan"><span class="hw-dot"></span><span id="hw-label">Scanner ready: press the trigger</span></label>
+      <button id="scan-start" class="btn big">📷 Use phone camera</button>
       <div id="scan-msg" class="err"></div>
       <div class="or">or type a customer code or name</div>
       <form id="manual" class="row"><div><input id="q" placeholder="Code or name" autocomplete="off" autocapitalize="none"></div>
         <button class="btn grow-0">Search</button></form>
       <ul id="results" class="results"></ul>
-      <p class="small muted mode-line">Using ${cam ? 'phone camera' : 'handheld scanner'} · <button class="link" id="scan-mode">Change</button></p>
     </div>
     <div id="cust"></div>`;
-  $('#scan-mode').onclick = () => { stopScanner(); hwInput.blur(); setScanMode(null); pageScan(); };
   $('#scan-start').onclick = startScanner;
   $('#scan-switch').onclick = switchCamera;
   $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw(); };
-  // If the box already has focus (e.g. set from code), a tap wouldn't re-focus it and the scanner stays
-  // deaf, so drop focus first and let the tap focus it for real
-  $('#hw-wrap').onpointerdown = () => { if (document.activeElement === hwInput) hwInput.blur(); };
-  $('#hw-wrap').onclick = () => { hwArmed = true; setTimeout(hwState); };
   hwState();
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
@@ -239,12 +208,6 @@ function pageScan(customer) {
     $$('#results li[data-id]').forEach((li) => li.onclick = () => loadCustomer(li.dataset.id));
   };
   if (customer) showCustomer(customer.customer, customer.recent);
-  else resumeScan();
-}
-
-// Back on the Find screen: get the chosen scanner listening again
-function resumeScan() {
-  if (getScanMode() === 'cam') { if (!scanner) startScanner(); }
   else focusHw();
 }
 
@@ -264,21 +227,16 @@ document.body.append(hwInput);
 const hwSubmit = () => { clearTimeout(hwTimer); const v = hwInput.value.trim(); hwInput.value = ''; if (v && $('#find')) onHardwareScan(v); };
 hwInput.onkeydown = (e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); hwSubmit(); } };
 // Some scanners paste the whole code at once with no Enter; submit once the text stops arriving
-hwInput.oninput = () => { hwArmed = true; clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
-hwInput.onfocus = () => hwState();
-hwInput.onblur = () => { hwArmed = false; hwState(); };
+hwInput.oninput = () => { clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
+hwInput.onfocus = hwInput.onblur = () => hwState();
 
-// Focusing the box from code isn't enough on some scanners, so only show "ready" once it was focused
-// by a tap (or text has already arrived) and hasn't lost focus since
-let hwArmed = false;
 function hwState() {
   const wrap = $('#hw-wrap'); if (!wrap) return;
-  const on = document.activeElement === hwInput && hwArmed;
+  const on = document.activeElement === hwInput;
   wrap.classList.toggle('on', on);
   $('#hw-label').textContent = on ? 'Scanner ready: press the trigger' : 'Tap here to use the handheld scanner';
 }
 function focusHw() {
-  if (getScanMode() === 'cam') return;
   if ($('#find') && !modal.open && document.activeElement !== hwInput) hwInput.focus({ preventScroll: true });
 }
 
@@ -380,7 +338,6 @@ async function lookupCode(code, quiet) {
 async function loadCustomer(id) { const r = await api('GET', '/api/customers/' + id); showCustomer(r.customer, r.recent); }
 
 function showCustomer(c, recent, savedIds) {
-  stopScanner(); // camera off while a customer is open; it comes back on with the Find screen
   $('#results').innerHTML = ''; $('#scan-msg').textContent = '';
   const box = $('#cust');
   box.innerHTML = `
@@ -406,7 +363,7 @@ function showCustomer(c, recent, savedIds) {
     </div>
     ${me.role === 'admin' ? `<div class="card"><h3>Recent for this customer</h3>${entryList(recent, true)}</div>` : ''}`;
   // While a customer is open, hide the Find customer box; bring it back when they close it
-  const backToFind = () => { box.innerHTML = ''; $('#find').hidden = false; window.scrollTo({ top: 0 }); resumeScan(); };
+  const backToFind = () => { box.innerHTML = ''; $('#find').hidden = false; window.scrollTo({ top: 0 }); focusHw(); };
   $('#find').hidden = true; window.scrollTo({ top: 0 });
   $('#clear-cust').onclick = backToFind;
   bindUndo(box, () => loadCustomer(c.id));
