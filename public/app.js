@@ -140,6 +140,7 @@ const PAGES = {
   scan: () => pageScan(), owing: () => pageOwing(), mine: () => pageMine(), password: () => showChangePassword(false),
   dashboard: () => pageDashboard(), customers: () => pageCustomers(), entries: () => pageEntries(),
   reports: () => pageReports(), users: () => pageUsers(), labels: () => pageLabels(), recon: () => pageRecon(),
+  scantest: () => pageScanTest(),
 };
 const ADMIN_ONLY = new Set(['dashboard', 'customers', 'entries', 'reports', 'users', 'labels', 'recon']);
 
@@ -256,6 +257,42 @@ function pageScan(customer) {
 function resumeScan() {
   if (getScanMode() === 'cam') { if (!scanner) startScanner(); }
   else focusHw();
+}
+
+// ---------- scanner test page (#/scantest, not in the menu) ----------
+// Shows exactly which events a handheld scanner sends, to diagnose devices we can't test on.
+let scanTestOff = null;
+function pageScanTest() {
+  view.innerHTML = `
+    <div class="card">
+      <h1>Scanner test</h1>
+      <p class="small muted">Tap a box, press the scanner trigger, then take a photo of this screen.</p>
+      <div class="field"><label class="small">Box A (normal)</label><input id="st-a" autocomplete="off" autocapitalize="none"></div>
+      <div class="field"><label class="small">Box B (no on-screen keyboard)</label><input id="st-b" inputmode="none" autocomplete="off" autocapitalize="none"></div>
+      <div class="row"><button class="btn" id="st-clear">Clear</button></div>
+      <pre id="st-log" class="small" style="white-space:pre-wrap;word-break:break-all;max-height:50vh;overflow:auto;margin:8px 0 0"></pre>
+      <p class="small muted" id="st-ua"></p>
+    </div>`;
+  $('#st-ua').textContent = navigator.userAgent;
+  const log = $('#st-log'); let t0 = 0;
+  const add = (e) => {
+    if (!log.isConnected) return;
+    const now = performance.now(); if (!t0 || now - t0 > 3000) { t0 = now; log.textContent += '----\n'; }
+    const t = e.target, where = t && (t.id || t.tagName || 'doc');
+    const bits = [Math.round(now - t0) + 'ms', e.type, where];
+    if ('key' in e) bits.push(`key=${JSON.stringify(e.key)} code=${e.code} kc=${e.keyCode}`);
+    if ('inputType' in e) bits.push(`${e.inputType} data=${JSON.stringify(e.data)}`);
+    if (e.type.startsWith('composition')) bits.push(`data=${JSON.stringify(e.data)}`);
+    if (e.type === 'input' && t && 'value' in t) bits.push(`value=${JSON.stringify(t.value)}`);
+    log.textContent += bits.join(' ') + '\n';
+    const lines = log.textContent.split('\n'); if (lines.length > 80) log.textContent = lines.slice(-80).join('\n');
+    log.scrollTop = log.scrollHeight;
+  };
+  const types = ['keydown', 'keyup', 'keypress', 'beforeinput', 'input', 'compositionstart', 'compositionupdate', 'compositionend', 'paste', 'focusin', 'focusout'];
+  if (scanTestOff) scanTestOff();
+  types.forEach((ty) => document.addEventListener(ty, add, true));
+  scanTestOff = () => types.forEach((ty) => document.removeEventListener(ty, add, true));
+  $('#st-clear').onclick = () => { log.textContent = ''; $('#st-a').value = ''; $('#st-b').value = ''; };
 }
 
 // ---------- handheld (hardware) barcode scanner ----------
