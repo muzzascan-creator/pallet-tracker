@@ -265,8 +265,8 @@ main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   main.narrow .card { padding: 10px 12px; }
   .cust-name { font-size: 1.45rem; }
   .cust-head .btn.sm { min-height: 30px; }
-  .balance-box { display: flex; align-items: baseline; justify-content: center; gap: 10px; padding: 6px 10px; margin: 8px 0; }
-  .balance-box .n { font-size: 2rem; }
+  .balance-box { padding: 6px 10px; margin: 8px 0; }
+  .balance-box .n { font-size: 2.6rem; }
   .balance-box .l { font-size: .9rem; }
   .steppers { gap: 6px; margin-bottom: 4px; }
   .stepper { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); align-items: center; gap: 6px; padding: 6px 8px; text-align: left; }
