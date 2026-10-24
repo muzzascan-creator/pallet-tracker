@@ -162,6 +162,7 @@ route('GET', '/api/lookup', (req, res, { query }) => {
   if (!code) throw bad('No code');
   // Exact match first; then ignore leading zeros, since barcodes often pad numbers (e.g. 0001034 for 1034).
   const c = db.prepare('SELECT id FROM customers WHERE code = ?').get(code)
+    || db.prepare('SELECT id FROM customers WHERE upper(trim(code)) = upper(?)').get(code)
     || (/^\d+$/.test(code) ? db.prepare(`SELECT id FROM customers WHERE ltrim(code, '0') = ltrim(?, '0')`).get(code) : null);
   if (!c) throw new HttpError(404, `No customer found for code "${code}"`);
   send(res, 200, { customer: customerWithBalance(c.id), recent: recentMovements(c.id, 5) });

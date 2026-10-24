@@ -230,22 +230,31 @@ function pageScanHw() {
   const q = $('#q'); let qLen = 0, qTimer = null;
   const ready = () => { const on = document.activeElement === q; q.classList.toggle('on', on); $('#hw-help').textContent = on ? '● Scanner ready: press the trigger' : 'Tap the box once, then press the scanner trigger'; };
   q.onfocus = ready; q.onblur = ready;
-  // A scan lands as one chunk of 3+ characters; typing by hand arrives one character at a time
+  // With no on-screen keyboard, anything arriving in the box is from the scanner, whether it comes
+  // in one go or a few characters at a time: search once it has stopped arriving.
+  // (With the keyboard brought back for typing a name, only a whole chunk of 3+ characters counts.)
   q.addEventListener('input', (e) => {
     const len = q.value.length, jump = len - qLen; qLen = len;
-    if (!/^insert/.test(e.inputType || 'insert') || jump < 3) return;
+    if (!/^insert/.test(e.inputType || 'insert')) return;
+    if (q.inputMode !== 'none' && jump < 3) return;
     clearTimeout(qTimer);
-    qTimer = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(80); $('#manual').requestSubmit(); }, 150);
+    qTimer = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(80); $('#manual').requestSubmit(); }, 300);
   });
   // No on-screen keyboard on the box (it would cover Save); this brings it back for typing a name
   $('#type-name').onclick = () => { q.inputMode = 'text'; q.blur(); q.focus(); };
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
-    const text = q.value.trim(); q.value = ''; qLen = 0; q.inputMode = 'none';
+    clearTimeout(qTimer);
+    const text = q.value.replace(/[\x00-\x1f\x7f]/g, '').trim(); q.value = ''; qLen = 0; q.inputMode = 'none'; // scanners can add hidden control characters
     if (!text) return;
     const parked = $('#find').classList.contains('parked'); // a customer is open: a scan replaces them
     if (!parked) $('#cust').innerHTML = '';
-    try { return await lookupCode(text, true); } catch (err) { if (parked) return toast(err.message, 5000); }
+    $('#scan-msg').textContent = '';
+    try { return await lookupCode(text, true); } catch (err) {
+      toast(err.message, 6000);
+      if (parked) return;
+      $('#scan-msg').textContent = err.message; // shows exactly what the scanner sent
+    }
     const { customers } = await api('GET', '/api/customers?q=' + encodeURIComponent(text));
     $('#results').innerHTML = customers.length ? customers.slice(0, 20).map((c) =>
       `<li data-id="${c.id}"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}">${fmt(c.balance)}</span></li>`).join('')
