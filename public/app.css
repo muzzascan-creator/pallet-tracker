@@ -275,8 +275,8 @@ main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   .stepper .ctl button { height: 52px; font-size: 2rem; }
   .stepper .ctl input { height: 52px; min-height: 0; font-size: 1.7rem; }
   .after { margin: 2px 0 0; font-size: .9rem; }
-  .move-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  #complete-move, #save-move { min-height: 56px; margin: 0; font-size: 1.15rem; }
-  #complete-move span { font-size: .7rem; }
+  .move-actions { display: grid; gap: 6px; }
+  #complete-move, #save-move { min-height: 54px; margin: 0; font-size: 1.2rem; }
+  #complete-move span { font-size: .75rem; }
   .saved-banner { padding: 8px 12px; font-size: 1.3rem; }
 }
