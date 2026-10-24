@@ -354,9 +354,11 @@ function showCustomer(c, recent, savedIds) {
           ${stepper('collected', 'Picking up', 'c')}
         </div>
         <div class="after" id="after"></div>
-        <button type="button" class="btn big" id="complete-move">Complete<span>1 delivered + 1 picked up</span></button>
         <div class="err"></div>
-        <button class="btn primary big" id="save-move">Save</button>
+        <div class="move-actions">
+          <button type="button" class="btn big" id="complete-move">Complete<span>1 delivered + 1 picked up</span></button>
+          <button class="btn primary big" id="save-move">Save</button>
+        </div>
       </form>` : '<p class="err">This customer is marked inactive. Ask an admin.</p>'}
     </div>
     ${me.role === 'admin' ? `<div class="card"><h3>Recent for this customer</h3>${entryList(recent, true)}</div>` : ''}`;
