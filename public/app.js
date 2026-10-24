@@ -305,8 +305,9 @@ hwInput.onkeydown = (e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preve
 hwInput.oninput = () => { hwArmed = true; clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
 hwInput.onfocus = () => hwState();
 hwInput.onblur = () => { hwArmed = false; hwState(); };
-// A tap on the bar always focuses it for real (drop any focus set from code first)
-hwInput.onpointerdown = () => { if (document.activeElement === hwInput) hwInput.blur(); hwArmed = true; };
+// The scanner only fires into a box the driver focused with their own tap, so the bar is never
+// focused from code: the tap is what switches it on, and it then keeps focus through Save etc.
+hwInput.onpointerdown = () => { hwArmed = true; };
 function hwBar(show) { document.body.classList.toggle('hw-find', show); hwState(); }
 
 // Focusing the box from code isn't enough on some scanners, so only show "ready" once it was focused
@@ -318,7 +319,7 @@ function hwState() {
   hwInput.placeholder = on ? '● Scanner ready: press the trigger' : 'Tap here to use the handheld scanner';
 }
 function focusHw() {
-  if (getScanMode() === 'cam') return;
+  if (getScanMode() === 'cam' || !hwArmed) return; // never take focus from code unless a tap already switched the bar on
   if ($('#find') && !modal.open && document.activeElement !== hwInput) hwInput.focus({ preventScroll: true });
 }
 
