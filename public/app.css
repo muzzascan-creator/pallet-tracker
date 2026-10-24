@@ -139,9 +139,12 @@ dialog { border: 0; border-radius: var(--radius); padding: 0; width: min(640px, 
 dialog::backdrop { background: rgba(0,0,0,.45); }
 #modal-body { padding: 20px; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
-#toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(120px); background: var(--text); color: var(--bg);
-  padding: 12px 18px; border-radius: 10px; font-weight: 600; transition: transform .25s; z-index: 100; max-width: calc(100vw - 32px); }
-#toast.show { transform: translateX(-50%) translateY(0); }
+/* Hidden toast slides fully below the screen and fades out: a long message wraps to several lines,
+   and a fixed 120px slide left its top line ("Saved.") stuck at the bottom of small screens */
+#toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(calc(100% + 40px)); background: var(--text); color: var(--bg);
+  padding: 12px 18px; border-radius: 10px; font-weight: 600; transition: transform .25s, opacity .25s, visibility .25s; z-index: 100; max-width: calc(100vw - 32px);
+  opacity: 0; visibility: hidden; pointer-events: none; }
+#toast.show { transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; }
 
 /* labels sheet */
 .labels { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
