@@ -174,7 +174,17 @@ async function boot() {
 let scanner = null;
 async function stopScanner() {
   if (scanner) { const s = scanner; scanner = null; try { if (s.isScanning) await s.stop(); s.clear(); } catch {} }
+  releaseCamera();
 }
+// Remember every camera stream the page opens, so the camera can always be switched off, even when the
+// scanner library lost track of it (e.g. the screen changed while it was starting). A camera left on
+// in the background stops the handheld scanner's trigger from working.
+const camStreams = new Set();
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+  const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = async (c) => { const st = await gum(c); camStreams.add(st); return st; };
+}
+function releaseCamera() { for (const st of camStreams) st.getTracks().forEach((t) => t.stop()); camStreams.clear(); }
 
 // How this operator scans (handheld scanner or phone camera): asked once after login, kept until logout
 const MODE_KEY = 'scanMode';
@@ -314,7 +324,13 @@ function flushHw() {
   const code = hwBuf.trim(); hwBuf = '';
   if (code.length >= HW_MIN_LEN && $('#find')) onHardwareScan(code);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) focusHw(); });
+// Never leave the camera on in the background (it blocks the handheld scanner): off when the app is
+// hidden or closed, back on when it returns in camera mode
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (scanner) { stopScanner(); const b = $('#scan-box'); if (b) { b.hidden = true; $('#scan-start').hidden = false; } } }
+  else if (me && $('#find') && !$('#find').hidden) resumeScan();
+});
+window.addEventListener('pagehide', () => stopScanner());
 
 // Android phones often open a low-resolution or wide-angle camera that can't read 1D barcodes.
 // Ask for a sharp, auto-focusing back camera, read only the barcode types we use, and let the
@@ -329,10 +345,12 @@ async function startScanner() {
   if (!window.Html5Qrcode) { msg.textContent = 'Scanner did not load. Type the code instead.'; return; }
   await stopScanner();
   $('#scan-box').hidden = false; $('#scan-start').hidden = true;
-  scanner = new Html5Qrcode('reader', { verbose: false, formatsToSupport: SCAN_FORMATS(), experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+  // Keep our own handle: if the camera is stopped (Save, Change, leaving the page) while it is still
+  // starting, it must still be switched off once it comes up, or it stays on and blocks the handheld scanner
+  const s = scanner = new Html5Qrcode('reader', { verbose: false, formatsToSupport: SCAN_FORMATS(), experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
   const box = (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(Math.min(h * 0.6, w * 0.5)) });
   const onRead = async (text) => {
-    if (!scanner) return;
+    if (scanner !== s) return;
     await stopScanner();
     $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw();
     if (navigator.vibrate) navigator.vibrate(80);
@@ -342,14 +360,16 @@ async function startScanner() {
   const sharp = { ...cam, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] };
   const cfg = (vc) => ({ fps: 15, qrbox: box, videoConstraints: vc });
   try {
-    try { await scanner.start(cam, cfg(sharp), onRead); }
+    try { await s.start(cam, cfg(sharp), onRead); }
     catch (err) { // some phones refuse the extra settings; try again with just the camera
-      if (/permission|notallowed/i.test(String(err))) throw err;
-      try { if (scanner.isScanning) await scanner.stop(); } catch {}
-      await scanner.start(cam, cfg(cam), onRead);
+      if (/permission|notallowed/i.test(String(err)) || scanner !== s) throw err;
+      try { if (s.isScanning) await s.stop(); } catch {}
+      await s.start(cam, cfg(cam), onRead);
     }
+    if (scanner !== s) { try { if (s.isScanning) await s.stop(); s.clear(); } catch {} if (!scanner) releaseCamera(); return; } // stopped while starting
     $('#scan-switch').hidden = false;
   } catch (err) {
+    if (scanner !== s) { try { if (s.isScanning) await s.stop(); s.clear(); } catch {} if (!scanner) releaseCamera(); return; }
     await stopScanner();
     $('#scan-box').hidden = true; $('#scan-start').hidden = false;
     msg.textContent = /permission|notallowed/i.test(String(err)) ? 'Camera permission was refused. Allow camera access in your browser settings.' : 'Could not start the camera: ' + err;
