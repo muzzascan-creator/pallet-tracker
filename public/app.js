@@ -221,31 +221,27 @@ function pageScanHw() {
       <h1>Find customer</h1>
       <p class="hw-help" id="hw-help">Tap the box once, then press the scanner trigger</p>
       <div id="scan-msg" class="err"></div>
-      <form id="manual" class="row"><div><input id="q" placeholder="Tap here, then scan" autocomplete="off" autocapitalize="none" inputmode="none"></div>
+      <form id="manual" class="row"><div><input id="q" placeholder="Tap here, then scan" autocomplete="off" autocapitalize="none"></div>
         <button class="btn grow-0">Search</button></form>
-      <p class="small" style="margin:6px 0 0"><button class="link" id="type-name" type="button">⌨ Type a name instead</button></p>
       <ul id="results" class="results"></ul>
     </div>
     <div id="cust"></div>`;
   const q = $('#q'); let qLen = 0, qTimer = null;
   const ready = () => { const on = document.activeElement === q; q.classList.toggle('on', on); $('#hw-help').textContent = on ? '● Scanner ready: press the trigger' : 'Tap the box once, then press the scanner trigger'; };
   q.onfocus = ready; q.onblur = ready;
-  // With no on-screen keyboard, anything arriving in the box is from the scanner, whether it comes
-  // in one go or a few characters at a time: search once it has stopped arriving.
-  // (With the keyboard brought back for typing a name, only a whole chunk of 3+ characters counts.)
+  // A scan lands as one chunk of 3+ characters; typing by hand arrives one character at a time.
+  // (The box is a plain text box on purpose: with the on-screen keyboard switched off
+  // (inputmode=none) this scanner's typing stopped reaching it.)
   q.addEventListener('input', (e) => {
     const len = q.value.length, jump = len - qLen; qLen = len;
-    if (!/^insert/.test(e.inputType || 'insert')) return;
-    if (q.inputMode !== 'none' && jump < 3) return;
+    if (!/^insert/.test(e.inputType || 'insert') || jump < 3) return;
     clearTimeout(qTimer);
     qTimer = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(80); $('#manual').requestSubmit(); }, 300);
   });
-  // No on-screen keyboard on the box (it would cover Save); this brings it back for typing a name
-  $('#type-name').onclick = () => { q.inputMode = 'text'; q.blur(); q.focus(); };
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
     clearTimeout(qTimer);
-    const text = q.value.replace(/[\x00-\x1f\x7f]/g, '').trim(); q.value = ''; qLen = 0; q.inputMode = 'none'; // scanners can add hidden control characters
+    const text = q.value.replace(/[\x00-\x1f\x7f]/g, '').trim(); q.value = ''; qLen = 0; // scanners can add hidden control characters
     if (!text) return;
     const parked = $('#find').classList.contains('parked'); // a customer is open: a scan replaces them
     if (!parked) $('#cust').innerHTML = '';
@@ -265,7 +261,7 @@ function pageScanHw() {
 // Keep the scanner box focused when a button is tapped (the tap itself still works)
 document.addEventListener('mousedown', (e) => {
   const a = document.activeElement;
-  if (a && a.id === 'q' && a.inputMode === 'none' && !e.target.closest('input, textarea, select, [contenteditable]')) e.preventDefault();
+  if (a && a.id === 'q' && isScannerUser() && !e.target.closest('input, textarea, select, [contenteditable]')) e.preventDefault();
 }, true);
 // Hide or show the Find box while a customer is open. For scanner users it is shrunk out of sight
 // instead of hidden, because hiding it would drop the focus the driver's tap gave the scan box.
