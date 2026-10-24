@@ -302,7 +302,11 @@ document.body.append(hwInput);
 const hwSubmit = () => { clearTimeout(hwTimer); const v = hwInput.value.trim(); hwInput.value = ''; if (v && $('#find')) onHardwareScan(v); };
 hwInput.onkeydown = (e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); hwSubmit(); } };
 // Some scanners paste the whole code at once with no Enter; submit once the text stops arriving
-hwInput.oninput = () => { hwArmed = true; clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
+const hwSoon = () => { if (!hwInput.value) return; hwArmed = true; clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
+['input', 'change', 'keyup', 'compositionend'].forEach((t) => hwInput.addEventListener(t, hwSoon));
+// Belt and braces: if text sits in the bar without any event we recognise, submit it anyway
+let hwSeen = '';
+setInterval(() => { const v = hwInput.value; if (v && v === hwSeen) hwSubmit(); hwSeen = v; }, 400);
 hwInput.onfocus = () => hwState();
 hwInput.onblur = () => { hwArmed = false; hwState(); };
 // The scanner only fires into a box the driver focused with their own tap, so the bar is never
@@ -331,9 +335,10 @@ document.addEventListener('mousedown', (e) => {
 async function onHardwareScan(code) {
   if (scanner) { await stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; }
   if (navigator.vibrate) navigator.vibrate(80);
+  toast('Scanned: ' + code);
   const findShown = !$('#find').hidden;
   try { await lookupCode(code, true); }
-  catch (err) { if (findShown) $('#scan-msg').textContent = err.message; else toast(err.message, 4000); focusHw(); }
+  catch (err) { if (findShown) $('#scan-msg').textContent = err.message; toast(err.message, 5000); focusHw(); }
 }
 
 document.addEventListener('keydown', (e) => {
