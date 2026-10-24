@@ -992,11 +992,11 @@ async function pageUsers() {
   const { users } = await api('GET', '/api/admin/users');
   view.innerHTML = `
     <div class="toolbar"><h1 style="margin:0">Users</h1><span class="spacer"></span><button class="btn primary" id="add-user">+ Add user</button></div>
-    <div class="card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Last entry</th><th></th></tr></thead>
-      <tbody>${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.username)}</td><td>${u.role === 'admin' ? 'Administrator' : 'Operator'}</td>
+    <div class="card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Device</th><th>Status</th><th>Last entry</th><th></th></tr></thead>
+      <tbody>${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.username)}</td><td>${u.role === 'admin' ? 'Administrator' : 'Operator'}</td><td>${u.device === 'scanner' ? 'Scanner' : 'Phone'}</td>
         <td>${u.active ? 'Active' : '<span class="pill">Disabled</span>'}</td><td class="small muted">${dt(u.last_entry)}</td>
         <td><button class="btn sm" data-edit="${u.id}">Edit</button></td></tr>`).join('')}</tbody></table></div>
-      <p class="small muted">Operators can scan and record deliveries and pick-ups. Only administrators can cancel entries, and they see everything.</p></div>`;
+      <p class="small muted">Operators can scan and record deliveries and pick-ups. Only administrators can cancel entries, and they see everything. Device is the equipment the user scans with: a phone (camera) or a handheld scanner.</p></div>`;
   $('#add-user').onclick = () => userForm(null);
   $$('[data-edit]').forEach((b) => b.onclick = () => userForm(users.find((u) => u.id === +b.dataset.edit)));
 }
@@ -1008,6 +1008,8 @@ function userForm(u) {
       <div class="row"><div class="field"><label>Full name</label><input name="name" value="${esc(u?.name || '')}" required></div>
         <div class="field"><label>Username</label><input name="username" value="${esc(u?.username || '')}" ${u ? 'disabled' : 'required'} autocapitalize="none"></div></div>
       <div class="row"><div class="field"><label>Role</label><select name="role"><option value="operator">Operator</option><option value="admin" ${u?.role === 'admin' ? 'selected' : ''}>Administrator</option></select></div>
+        <div class="field"><label>Device</label><select name="device"><option value="phone">1. Phone</option><option value="scanner" ${u?.device === 'scanner' ? 'selected' : ''}>2. Scanner</option></select></div></div>
+      <div class="row">
         <div class="field"><label>${u ? 'Reset password (leave blank to keep)' : 'Temporary password'}</label><input name="password" type="text" autocomplete="off" ${u ? '' : 'required minlength="6"'}></div></div>
       ${u ? `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="active" ${u.active ? 'checked' : ''} style="width:auto;min-height:0"> Can log in</label>` : ''}
       <p class="small muted">They will be asked to choose their own password the first time they log in.</p>

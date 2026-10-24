@@ -64,10 +64,10 @@ const failedLogins = new Map(); // key -> { count, until }
 function currentUser(req) {
   const token = parseCookies(req).sid;
   if (!token) return null;
-  const row = db.prepare(`SELECT u.id, u.username, u.name, u.role, u.must_change_password, u.active, s.expires_at
+  const row = db.prepare(`SELECT u.id, u.username, u.name, u.role, u.device, u.must_change_password, u.active, s.expires_at
                           FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`).get(token);
   if (!row || !row.active || row.expires_at < new Date().toISOString()) return null;
-  return { id: row.id, username: row.username, name: row.name, role: row.role, mustChangePassword: !!row.must_change_password, token };
+  return { id: row.id, username: row.username, name: row.name, role: row.role, device: row.device, mustChangePassword: !!row.must_change_password, token };
 }
 
 function cookie(req, value, maxAgeSec) {
@@ -131,7 +131,7 @@ route('POST', '/api/login', { auth: 'none' }, async (req, res) => {
   const expires = new Date(Date.now() + SESSION_DAYS * 864e5).toISOString();
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(new Date().toISOString());
   db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, user.id, expires);
-  send(res, 200, { user: { id: user.id, username: user.username, name: user.name, role: user.role, mustChangePassword: !!user.must_change_password } },
+  send(res, 200, { user: { id: user.id, username: user.username, name: user.name, role: user.role, device: user.device, mustChangePassword: !!user.must_change_password } },
     { 'Set-Cookie': cookie(req, token, SESSION_DAYS * 86400) });
 });
 
@@ -314,7 +314,7 @@ route('POST', '/api/admin/adjust', { auth: 'admin' }, async (req, res, { user })
 
 // --- admin: users ---
 route('GET', '/api/admin/users', { auth: 'admin' }, (req, res) => {
-  const users = db.prepare(`SELECT u.id, u.username, u.name, u.role, u.active, u.created_at,
+  const users = db.prepare(`SELECT u.id, u.username, u.name, u.role, u.device, u.active, u.created_at,
       (SELECT MAX(created_at) FROM movements WHERE user_id = u.id) AS last_entry
     FROM users u ORDER BY u.active DESC, u.role, u.name`).all();
   send(res, 200, { users });
@@ -323,12 +323,13 @@ route('GET', '/api/admin/users', { auth: 'admin' }, (req, res) => {
 route('POST', '/api/admin/users', { auth: 'admin' }, async (req, res) => {
   const b = await readJson(req);
   const username = str(b.username, 50), name = str(b.name, 100), role = b.role === 'admin' ? 'admin' : 'operator';
+  const device = b.device === 'scanner' ? 'scanner' : 'phone';
   if (!/^[A-Za-z0-9._-]{2,50}$/.test(username)) throw bad('Username: 2-50 letters, numbers, dot, dash or underscore');
   if (!name) throw bad('Name is required');
   if (String(b.password || '').length < 6) throw bad('Password must be at least 6 characters');
   if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) throw bad('That username is taken');
-  const id = db.prepare(`INSERT INTO users (username, name, role, password_hash, must_change_password) VALUES (?, ?, ?, ?, 1)`)
-    .run(username, name, role, hashPassword(String(b.password))).lastInsertRowid;
+  const id = db.prepare(`INSERT INTO users (username, name, role, device, password_hash, must_change_password) VALUES (?, ?, ?, ?, ?, 1)`)
+    .run(username, name, role, device, hashPassword(String(b.password))).lastInsertRowid;
   send(res, 201, { id: Number(id) });
 });
 
@@ -339,9 +340,10 @@ route('PUT', '/api/admin/users/:id', { auth: 'admin' }, async (req, res, { user,
   if (!target) throw new HttpError(404, 'User not found');
   const name = str(b.name, 100) || target.name;
   const role = b.role === 'admin' || b.role === 'operator' ? b.role : target.role;
+  const device = b.device === 'phone' || b.device === 'scanner' ? b.device : target.device;
   const active = b.active === undefined ? target.active : (b.active ? 1 : 0);
   if (id === user.id && (role !== 'admin' || !active)) throw bad('You cannot remove your own admin access');
-  db.prepare('UPDATE users SET name=?, role=?, active=? WHERE id=?').run(name, role, active, id);
+  db.prepare('UPDATE users SET name=?, role=?, device=?, active=? WHERE id=?').run(name, role, device, active, id);
   if (b.password) {
     if (String(b.password).length < 6) throw bad('Password must be at least 6 characters');
     db.prepare('UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?').run(hashPassword(String(b.password)), id);
