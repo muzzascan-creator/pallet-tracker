@@ -24,6 +24,16 @@ Browsers only allow the camera on **https** pages (or `localhost`). Host the app
 (any host with a persistent disk, or a tunnel such as Cloudflare Tunnel for testing).
 If scanning isn't possible, operators can type a code or search by name.
 
+## Handheld barcode scanner
+
+Drivers with a handheld scanner (Users ▸ Edit ▸ Device = **2. Scanner**) get a Scan screen made for it: no camera, one scan box they tap once per shift, and the customer opens as soon as a code is scanned. Phone users are unaffected.
+
+Set up each scanner once, in its **Scan Tools ▸ Settings** app:
+- **Output mode:** Keyboard / Simulate keyboard (keystrokes), not "Focus input", "Fill" or "Broadcast".
+- **End character / Suffix:** Enter.
+
+In the other output modes the scanner only types while Android's on-screen keyboard is open, so the keyboard keeps popping up and covering the screen.
+
 ## How balances work
 
 Every entry is a line in a ledger:
