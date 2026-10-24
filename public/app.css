@@ -246,3 +246,31 @@ main { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 .saved-banner span { display: block; font-size: 1rem; font-weight: 600; margin-top: 4px; }
 @keyframes saved-in { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (max-width: 600px) { main.narrow .saved-banner { border-radius: 0; margin: 0 0 8px; } }
+
+/* ---------- scanner users (Users > Device = Scanner): compact screen sized for the handheld ---------- */
+body.dev-scanner { overflow-x: clip; } /* hidden would make body a scroll box and break sticky Save */
+.hw-help { text-align: center; color: var(--muted); margin: 4px 0 10px; font-weight: 600; }
+body.dev-scanner #q { min-height: 56px; font-size: 1.2rem; border: 2px dashed var(--muted); }
+body.dev-scanner #q.on { border: 2px solid var(--credit); background: var(--credit-bg); outline: none; }
+/* Customer open: Find box shrunk out of sight but still focused (see findShow) */
+#find.parked { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; margin: 0; padding: 0; border: 0; pointer-events: none; }
+body.dev-scanner header#topbar { position: static; padding-top: 4px; padding-bottom: 4px; gap: 2px 10px; font-size: .9rem; }
+body.dev-scanner #nav a { padding: 4px 10px; }
+body.dev-scanner main.narrow .card { padding: 10px 12px; }
+body.dev-scanner .cust-name { font-size: 1.45rem; font-weight: 800; line-height: 1.15; }
+body.dev-scanner .cust-head .btn.sm { min-height: 30px; }
+body.dev-scanner .balance-box { padding: 6px 10px; margin: 8px 0; }
+body.dev-scanner .balance-box .n { font-size: 2.6rem; }
+body.dev-scanner .balance-box .l { font-size: .9rem; }
+body.dev-scanner .steppers { gap: 6px; margin-bottom: 4px; }
+body.dev-scanner .stepper { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); align-items: center; gap: 6px; padding: 6px 8px; text-align: left; }
+body.dev-scanner .stepper .t { font-size: 1.05rem; margin: 0; }
+body.dev-scanner .stepper .ctl { grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 6px; }
+body.dev-scanner .stepper .ctl button { height: 50px; font-size: 2rem; }
+body.dev-scanner .stepper .ctl input { height: 50px; min-height: 0; font-size: 1.7rem; }
+body.dev-scanner .after { margin: 2px 0 0; font-size: .9rem; }
+body.dev-scanner .move-actions { display: grid; grid-auto-rows: 1fr; gap: 6px; padding: 4px 0 max(6px, env(safe-area-inset-bottom));
+  position: sticky; bottom: 0; z-index: 5; background: var(--surface); } /* Save as tall as Complete, always on screen */
+body.dev-scanner #complete-move, body.dev-scanner #save-move { min-height: 54px; margin: 0; font-size: 1.2rem; }
+body.dev-scanner #complete-move span { font-size: .75rem; }
+body.dev-scanner .saved-banner { padding: 8px 12px; font-size: 1.3rem; }
