@@ -153,6 +153,7 @@ function route() {
   if (me.mustChangePassword) { renderNav(''); return showChangePassword(true); }
   let page = (location.hash.match(/^#\/(\w+)/) || [])[1];
   if (!PAGES[page] || (ADMIN_ONLY.has(page) && me.role !== 'admin')) { page = home().slice(2); history.replaceState(null, '', home()); }
+  if (page !== 'scan') hwInput.blur();
   renderNav(page);
   view.className = ['scan', 'mine', 'owing', 'password'].includes(page) ? 'narrow' : '';
   PAGES[page]();
@@ -182,8 +183,7 @@ function pageScan(customer) {
       <div id="scan-box" hidden><div class="scan-area"><div id="reader"></div></div>
         <div class="row"><button id="scan-switch" class="btn" hidden>Switch camera</button><button id="scan-stop" class="btn">Stop camera</button></div>
         <p class="small muted" style="text-align:center;margin:6px 0 0">Hold the barcode flat, about a hand's width from the camera. Blurry? Tap Switch camera.</p></div>
-      <label class="hw-scan" id="hw-wrap"><span class="hw-dot"></span><span id="hw-label">Scanner ready: press the trigger</span>
-        <input id="hw-scan" inputmode="none" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Handheld scanner input"></label>
+      <label class="hw-scan" id="hw-wrap" for="hw-scan"><span class="hw-dot"></span><span id="hw-label">Scanner ready: press the trigger</span></label>
       <button id="scan-start" class="btn big">📷 Use phone camera</button>
       <div id="scan-msg" class="err"></div>
       <div class="or">or type a customer code or name</div>
@@ -195,7 +195,7 @@ function pageScan(customer) {
   $('#scan-start').onclick = startScanner;
   $('#scan-switch').onclick = switchCamera;
   $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; focusHw(); };
-  bindHwBox();
+  hwState();
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
     const q = $('#q').value.trim(); if (!q) return;
@@ -213,30 +213,37 @@ function pageScan(customer) {
 
 // ---------- handheld (hardware) barcode scanner ----------
 // Rugged scanners work like a keyboard: they "type" the barcode very fast, usually ending with Enter.
-// They need somewhere to type into, so the scan screen keeps a hidden box focused (inputmode=none
-// stops the on-screen keyboard popping up). A page-wide key listener also catches fast bursts when
-// nothing is focused, e.g. while a customer is open or the camera is running.
+// They need a focused box to type into. The box lives outside the page content so it survives
+// re-renders (open customer, Save, back to Find), and taps on buttons don't take focus off it,
+// because once a scanner loses its box it often stays quiet until the box is tapped again.
+// inputmode=none stops the on-screen keyboard popping up. A page-wide key listener also catches
+// fast bursts when nothing is focused.
 const HW_GAP_MS = 60, HW_IDLE_MS = 150, HW_MIN_LEN = 3;
 let hwBuf = '', hwLast = 0, hwTimer = null;
 
+const hwInput = Object.assign(document.createElement('input'), { id: 'hw-scan', autocomplete: 'off', spellcheck: false });
+for (const [k, v] of Object.entries({ inputmode: 'none', autocapitalize: 'none', autocorrect: 'off', 'aria-label': 'Handheld scanner input' })) hwInput.setAttribute(k, v);
+document.body.append(hwInput);
+const hwSubmit = () => { clearTimeout(hwTimer); const v = hwInput.value.trim(); hwInput.value = ''; if (v && $('#find')) onHardwareScan(v); };
+hwInput.onkeydown = (e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); hwSubmit(); } };
+// Some scanners paste the whole code at once with no Enter; submit once the text stops arriving
+hwInput.oninput = () => { clearTimeout(hwTimer); hwTimer = setTimeout(hwSubmit, HW_IDLE_MS); };
+hwInput.onfocus = hwInput.onblur = () => hwState();
+
+function hwState() {
+  const wrap = $('#hw-wrap'); if (!wrap) return;
+  const on = document.activeElement === hwInput;
+  wrap.classList.toggle('on', on);
+  $('#hw-label').textContent = on ? 'Scanner ready: press the trigger' : 'Tap here to use the handheld scanner';
+}
 function focusHw() {
-  const box = $('#hw-scan'), find = $('#find');
-  if (box && find && !find.hidden && !modal.open) box.focus({ preventScroll: true });
+  if ($('#find') && !modal.open && document.activeElement !== hwInput) hwInput.focus({ preventScroll: true });
 }
 
-function bindHwBox() {
-  const box = $('#hw-scan'), label = $('#hw-label'), wrap = $('#hw-wrap');
-  const submit = () => { clearTimeout(hwTimer); const v = box.value.trim(); box.value = ''; if (v) onHardwareScan(v); };
-  box.onkeydown = (e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); submit(); } };
-  // Some scanners paste the whole code at once with no Enter; submit once the text stops arriving
-  box.oninput = () => { clearTimeout(hwTimer); hwTimer = setTimeout(submit, HW_IDLE_MS); };
-  const state = () => {
-    const on = document.activeElement === box;
-    wrap.classList.toggle('on', on);
-    label.textContent = on ? 'Scanner ready: press the trigger' : 'Tap here to use the handheld scanner';
-  };
-  box.onfocus = state; box.onblur = state; state();
-}
+// Keep the scanner box focused when a button is tapped (the tap itself still works)
+document.addEventListener('mousedown', (e) => {
+  if (document.activeElement === hwInput && !e.target.closest('input, textarea, select, [contenteditable]')) e.preventDefault();
+}, true);
 
 async function onHardwareScan(code) {
   if (scanner) { await stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; }
