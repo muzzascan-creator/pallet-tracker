@@ -217,8 +217,9 @@ function pageScan(customer) {
       <button id="scan-start" class="btn primary big"${cam ? '' : ' hidden'}>📷 Open camera</button>
       <div id="scan-msg" class="err"></div>
       <div class="or">${cam ? 'or type a customer code or name' : 'Tap the box, then press the scanner trigger'}</div>
-      <form id="manual" class="row"><div><input id="q" placeholder="${cam ? 'Code or name' : 'Tap here, then scan'}" autocomplete="off" autocapitalize="none"></div>
+      <form id="manual" class="row"><div><input id="q" placeholder="${cam ? 'Code or name' : 'Tap here once, then scan'}" autocomplete="off" autocapitalize="none"${cam ? '' : ' inputmode="none"'}></div>
         <button class="btn grow-0">Search</button></form>
+      ${cam ? '' : '<p class="small" style="margin:6px 0 0"><button class="link" id="type-name" type="button">⌨ Type a name instead</button></p>'}
       <ul id="results" class="results"></ul>
       <p class="small muted mode-line">Using ${cam ? 'phone camera' : 'handheld scanner'} · <button class="link" id="scan-mode">Change</button></p>
     </div>
@@ -237,12 +238,16 @@ function pageScan(customer) {
     clearTimeout(qTimer);
     qTimer = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(80); $('#manual').requestSubmit(); }, HW_IDLE_MS);
   });
+  // The box has no on-screen keyboard in handheld mode (it would cover Save); this brings it back
+  const typeBtn = $('#type-name');
+  if (typeBtn) typeBtn.onclick = () => { q.inputMode = 'text'; q.blur(); q.focus(); };
   $('#manual').onsubmit = async (e) => {
     e.preventDefault();
     const text = q.value.trim(); if (!text) return;
-    if (!cam) { q.value = ''; qLen = 0; }
-    $('#cust').innerHTML = '';
-    try { return await lookupCode(text, true); } catch {}
+    if (!cam) { q.value = ''; qLen = 0; q.inputMode = 'none'; }
+    const parked = $('#find').classList.contains('parked'); // a customer is open: a scan replaces them
+    if (!parked) $('#cust').innerHTML = '';
+    try { return await lookupCode(text, true); } catch (err) { if (parked) return toast(err.message, 5000); }
     const { customers } = await api('GET', '/api/customers?q=' + encodeURIComponent(text));
     $('#results').innerHTML = customers.length ? customers.slice(0, 20).map((c) =>
       `<li data-id="${c.id}"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}">${fmt(c.balance)}</span></li>`).join('')
@@ -339,14 +344,15 @@ function focusHw() {
 
 // Keep the scanner box focused when a button is tapped (the tap itself still works)
 document.addEventListener('mousedown', (e) => {
-  if (document.activeElement === hwInput && !e.target.closest('input, textarea, select, [contenteditable]')) e.preventDefault();
+  const a = document.activeElement;
+  if ((a === hwInput || (a && a.id === 'q' && a.inputMode === 'none')) && !e.target.closest('input, textarea, select, [contenteditable]')) e.preventDefault();
 }, true);
 
 async function onHardwareScan(code) {
   if (scanner) { await stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; }
   if (navigator.vibrate) navigator.vibrate(80);
   toast('Scanned: ' + code);
-  const findShown = !$('#find').hidden;
+  const findShown = findOpen();
   try { await lookupCode(code, true); }
   catch (err) { if (findShown) $('#scan-msg').textContent = err.message; toast(err.message, 5000); focusHw(); }
 }
@@ -374,7 +380,7 @@ function flushHw() {
 // hidden or closed, back on when it returns in camera mode
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { if (scanner) { stopScanner(); const b = $('#scan-box'); if (b) { b.hidden = true; $('#scan-start').hidden = false; } } }
-  else if (me && $('#find') && !$('#find').hidden) resumeScan();
+  else if (me && findOpen()) resumeScan();
 });
 window.addEventListener('pagehide', () => stopScanner());
 
@@ -437,6 +443,16 @@ async function switchCamera() {
   } catch (err) { $('#scan-msg').textContent = 'Could not switch camera: ' + err; }
 }
 
+// Hide or show the Find box while a customer is open. In handheld mode it is shrunk out of sight
+// rather than hidden, because hiding it would drop the focus the driver's tap gave the search box,
+// and the scanner only types into a box the driver tapped.
+function findShow(show) {
+  const f = $('#find');
+  if (getScanMode() === 'hw') { f.hidden = false; f.classList.toggle('parked', !show); }
+  else f.hidden = !show;
+}
+const findOpen = () => { const f = $('#find'); return !!f && !f.hidden && !f.classList.contains('parked'); };
+
 async function lookupCode(code, quiet) {
   try {
     const r = await api('GET', '/api/lookup?code=' + encodeURIComponent(code));
@@ -473,8 +489,8 @@ function showCustomer(c, recent, savedIds) {
     </div>
     ${me.role === 'admin' ? `<div class="card"><h3>Recent for this customer</h3>${entryList(recent, true)}</div>` : ''}`;
   // While a customer is open, hide the Find customer box; bring it back when they close it
-  const backToFind = () => { box.innerHTML = ''; $('#find').hidden = false; window.scrollTo({ top: 0 }); resumeScan(); };
-  $('#find').hidden = true; window.scrollTo({ top: 0 });
+  const backToFind = () => { box.innerHTML = ''; findShow(true); window.scrollTo({ top: 0 }); resumeScan(); };
+  findShow(false); window.scrollTo({ top: 0 });
   $('#clear-cust').onclick = backToFind;
   bindUndo(box, () => loadCustomer(c.id));
   if (savedIds) {
@@ -503,8 +519,10 @@ function showCustomer(c, recent, savedIds) {
       toast(`Saved. ${r.customer.name} ${balanceText(r.customer.balance)}.`, 4000);
       if (me.role === 'admin') showCustomer(r.customer, r.recent, r.ids);
       else { // drivers go straight back to a fresh scan screen, with a big "Saved" banner so they know it worked
-        pageScan(); window.scrollTo({ top: 0 });
+        if (getScanMode() === 'hw') { box.innerHTML = ''; findShow(true); } else pageScan(); // handheld: keep the same box so it stays listening
+        window.scrollTo({ top: 0 });
         const what = [f.delivered > 0 && `${fmt(f.delivered)} delivered`, f.collected > 0 && `${fmt(f.collected)} picked up`].filter(Boolean).join(' + ');
+        $('#saved-banner')?.remove();
         $('#find').insertAdjacentHTML('beforebegin', `<div class="saved-banner" id="saved-banner">✓ Saved<span>${esc(r.customer.name)}: ${what}</span><span>Now ${balanceText(r.customer.balance)}</span></div>`);
         if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
         setTimeout(() => { const b = $('#saved-banner'); if (b) b.remove(); }, 6000);
