@@ -113,6 +113,8 @@ tfoot td { font-weight: 700; border-top: 2px solid var(--border); border-bottom:
 .hw-scan.on .hw-dot { background: var(--credit); animation: hw-pulse 1.4s ease-in-out infinite; }
 @keyframes hw-pulse { 50% { opacity: .35; } }
 #hw-scan { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; caret-color: transparent; pointer-events: none; }
+.mode-pick .btn.big { margin-top: 12px; min-height: 72px; font-size: 1.3rem; }
+.mode-line { text-align: center; margin: 12px 0 0; }
 .or { text-align: center; color: var(--muted); margin: 12px 0; font-size: .9rem; }
 .cust-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
 .cust-name { font-size: 1.6rem; font-weight: 800; line-height: 1.15; }
