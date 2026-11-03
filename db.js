@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TEXT NOT NULL
 );
 
--- Customer master file. "code" is what the barcode contains.
+-- Customer master file. "code" is the CID (shown as "CID" in the app): what the barcode contains, unique per customer.
 CREATE TABLE IF NOT EXISTS customers (
   id INTEGER PRIMARY KEY,
   code TEXT NOT NULL UNIQUE COLLATE NOCASE,
