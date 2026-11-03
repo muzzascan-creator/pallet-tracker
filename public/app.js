@@ -185,8 +185,8 @@ function pageScan(customer) {
         <p class="small muted" style="text-align:center;margin:6px 0 0">Hold the barcode flat, about a hand's width from the camera. Blurry? Tap Switch camera.</p></div>
       <button id="scan-start" class="btn primary big">📷 Scan barcode</button>
       <div id="scan-msg" class="err"></div>
-      <div class="or">or type a customer code or name</div>
-      <form id="manual" class="row"><div><input id="q" placeholder="Code or name" autocomplete="off" autocapitalize="none"></div>
+      <div class="or">or type a CID or name</div>
+      <form id="manual" class="row"><div><input id="q" placeholder="CID or name" autocomplete="off" autocapitalize="none"></div>
         <button class="btn grow-0">Search</button></form>
       <ul id="results" class="results"></ul>
     </div>
@@ -340,7 +340,7 @@ function showCustomer(c, recent, savedIds) {
   const box = $('#cust');
   box.innerHTML = `
     <div class="card">
-      <div class="cust-head"><div><div class="cust-name">${esc(c.name)}</div><div class="small muted">Code ${esc(c.code)}${c.address ? ' · ' + esc(c.address) : ''}</div></div>
+      <div class="cust-head"><div><div class="cust-name">${esc(c.name)}</div><div class="small muted">CID ${esc(c.code)}${c.address ? ' · ' + esc(c.address) : ''}</div></div>
         <button class="btn sm" id="clear-cust">✕</button></div>
       <div class="balance-box ${balCls(c.balance)}"><div class="n">${fmt(c.balance)}</div><div class="l">${c.balance === 0 ? 'All square, nothing owed' : c.balance > 0 ? 'pallets owed to you' : 'pallets you owe them'}</div></div>
       ${savedIds ? `
@@ -442,7 +442,7 @@ function bindUndo(root, after) {
 
 // Operator list of customers with a pallet balance, A to Z by customer name
 async function pageOwing() {
-  view.innerHTML = '<div class="card"><h1>Outstanding pallets</h1><input id="oq" placeholder="Search name or code" autocomplete="off" autocapitalize="none" style="margin-bottom:8px"><div id="owing" class="muted">Loading…</div></div>';
+  view.innerHTML = '<div class="card"><h1>Outstanding pallets</h1><input id="oq" placeholder="Search name or CID" autocomplete="off" autocapitalize="none" style="margin-bottom:8px"><div id="owing" class="muted">Loading…</div></div>';
   const { customers } = await api('GET', '/api/customers');
   const list = customers.filter((c) => c.balance !== 0).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   const draw = () => {
@@ -473,7 +473,7 @@ function openReturn(c, after = () => pageOwing(), back = null) {
   if (!c) return;
   const body = openModal(`
     <h2>${esc(c.name)}</h2>
-    <p class="small muted" style="margin-top:-6px">Code ${esc(c.code)} · ${balanceText(c.balance)}</p>
+    <p class="small muted" style="margin-top:-6px">CID ${esc(c.code)} · ${balanceText(c.balance)}</p>
     <form id="ret">
       <div class="steppers">${stepper('collected', 'Pallets returned', 'c')}</div>
       <div class="after" id="ret-after"></div>
@@ -556,11 +556,11 @@ async function pageCustomers() {
       <button class="btn" id="exp">Export CSV</button>
     </div>
     <div class="card">
-      <div class="row" style="margin-bottom:12px"><div><input id="cq" placeholder="Search name or code"></div>
+      <div class="row" style="margin-bottom:12px"><div><input id="cq" placeholder="Search name or CID"></div>
         <button class="btn grow-0" id="cowe" aria-pressed="false">Outstanding</button>
         <button class="btn grow-0" id="ctx" aria-pressed="false">TX Customers</button>
         <label class="grow-0" style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="call" style="width:auto;min-height:0"> Show inactive</label></div>
-      <div class="table-wrap"><table><thead><tr><th>Code</th><th>Customer</th><th class="num">Owed to you</th><th class="num">Delivered</th><th class="num">Picked up</th><th>Last activity</th></tr></thead>
+      <div class="table-wrap"><table><thead><tr><th>CID</th><th>Customer</th><th class="num">Owed to you</th><th class="num">Delivered</th><th class="num">Picked up</th><th>Last activity</th></tr></thead>
         <tbody id="ctable"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody><tfoot id="cfoot"></tfoot></table></div>
     </div>`;
   let rows = [], owingOnly = false, txOnly = false;
@@ -594,7 +594,7 @@ async function pageCustomers() {
   $('#add-cust').onclick = () => customerForm(null, load);
   $('#import').onclick = () => importDialog(load);
   $('#exp').onclick = () => downloadCSV('customer-balances.csv', [
-    { label: 'Code', value: 'code' }, { label: 'Customer', value: 'name' }, { label: 'Owed to us', value: 'balance' },
+    { label: 'CID', value: 'code' }, { label: 'Customer', value: 'name' }, { label: 'Owed to us', value: 'balance' },
     { label: 'Total delivered', value: 'total_delivered' }, { label: 'Total picked up', value: 'total_collected' },
     { label: 'Last activity', value: (r) => dt(r.last_activity, false) }, { label: 'Phone', value: 'phone' }, { label: 'Email', value: 'email' }, { label: 'Address', value: 'address' }], rows);
   load();
@@ -603,7 +603,7 @@ async function pageCustomers() {
 async function customerModal(id, onChange) {
   const { customer: c, recent } = await api('GET', '/api/customers/' + id);
   const body = openModal(`
-    <div class="cust-head"><div><h2 style="margin:0">${esc(c.name)}${c.tx ? ' <span class="pill tx">TX</span>' : ''}</h2><div class="small muted">Code ${esc(c.code)}</div></div><button class="btn sm" data-close>✕</button></div>
+    <div class="cust-head"><div><h2 style="margin:0">${esc(c.name)}${c.tx ? ' <span class="pill tx">TX</span>' : ''}</h2><div class="small muted">CID ${esc(c.code)}</div></div><button class="btn sm" data-close>✕</button></div>
     <div class="balance-box ${balCls(c.balance)}"><div class="n">${fmt(c.balance)}</div><div class="l">${c.balance === 0 ? 'All square' : c.balance > 0 ? 'pallets owed to you' : 'pallets you owe them'}</div></div>
     <div style="text-align:center;margin-bottom:12px"><svg id="bc"></svg></div>
     <div class="toolbar">
@@ -627,7 +627,7 @@ function customerForm(c, onChange) {
   const body = openModal(`
     <h2>${c ? 'Edit customer' : 'Add customer'}</h2>
     <form id="cf">
-      <div class="row"><div class="field"><label>Code (what the barcode contains)</label><input name="code" value="${esc(v.code)}" required></div>
+      <div class="row"><div class="field"><label>CID (what the barcode contains, must be unique)</label><input name="code" value="${esc(v.code)}" required></div>
         <div class="field"><label>Name</label><input name="name" value="${esc(v.name)}" required></div></div>
       <div class="field"><label>Address</label><input name="address" value="${esc(v.address)}"></div>
       <div class="row"><div class="field"><label>Phone</label><input name="phone" value="${esc(v.phone)}"></div>
@@ -675,7 +675,7 @@ function adjustForm(c, onChange) {
 // Master file import: CSV or Excel. Columns are matched by header name and can be changed before importing.
 function importDialog(onDone) {
   const FIELDS = [
-    ['code', 'Code / barcode *', /barcode|code|account|acc(ount)?\s*(no|number|#)?|cust(omer)?\s*(no|id|#|number)/i],
+    ['code', 'CID / barcode *', /\bcid\b|barcode|code|account|acc(ount)?\s*(no|number|#)?|cust(omer)?\s*(no|id|#|number)/i],
     ['name', 'Name *', /name|customer|company|business/i],
     ['address', 'Address', /address|street|location|suburb/i],
     ['phone', 'Phone', /phone|mobile|tel/i],
@@ -685,7 +685,7 @@ function importDialog(onDone) {
   ];
   const body = openModal(`
     <h2>Import customer master file</h2>
-    <p class="muted">Choose an Excel (.xlsx/.xls) or CSV file. The first row should be column headings. Existing codes are updated; new codes are added. Nothing is deleted.</p>
+    <p class="muted">Choose an Excel (.xlsx/.xls) or CSV file. The first row should be column headings. Existing CIDs are updated; new CIDs are added. Nothing is deleted. Each CID can appear only once in the file.</p>
     <input type="file" id="imp-file" accept=".csv,.xlsx,.xls,.txt">
     <div id="imp-map"></div>
     <div class="err"></div>
@@ -718,7 +718,7 @@ function importDialog(onDone) {
   };
   $('#imp-go').onclick = async () => {
     const map = Object.fromEntries($$('[data-f]', body).map((s) => [s.dataset.f, +s.value]));
-    if (map.code < 0 || map.name < 0) { $('.err', body).textContent = 'Pick the code and name columns.'; return; }
+    if (map.code < 0 || map.name < 0) { $('.err', body).textContent = 'Pick the CID and name columns.'; return; }
     const rows = table.slice(1).map((r) => Object.fromEntries(Object.entries(map).filter(([, i]) => i >= 0).map(([k, i]) => [k, String(r[i] ?? '').trim()])));
     rows.forEach((r) => {
       if (r.phone && !/\d/.test(r.phone)) r.phone = ''; // placeholders like "." or "-"
@@ -738,7 +738,7 @@ function importDialog(onDone) {
 async function pageLabels() {
   view.innerHTML = `
     <div class="toolbar"><h1 style="margin:0">Barcode labels</h1><span class="spacer"></span>
-      <input id="lq" placeholder="Filter by name or code" style="max-width:260px"><button class="btn primary" onclick="window.print()">Print</button></div>
+      <input id="lq" placeholder="Filter by name or CID" style="max-width:260px"><button class="btn primary" onclick="window.print()">Print</button></div>
     <p class="muted no-print">One Code 128 label per active customer. Print on label paper or plain paper and stick it where the driver can scan it (e.g. delivery docket book, customer dock).</p>
     <div class="labels" id="labels"></div>`;
   const { customers } = await api('GET', '/api/customers');
@@ -805,7 +805,7 @@ async function pageEntries() {
   });
   $('#ef').onchange = load;
   $('#e-csv').onclick = () => downloadCSV('pallet-entries.csv', [
-    { label: 'Date', value: (m) => new Date(m.created_at).toLocaleString([], { hour12: true }) }, { label: 'Entered by', value: 'user_name' }, { label: 'Customer code', value: 'customer_code' }, { label: 'Customer', value: 'customer_name' },
+    { label: 'Date', value: (m) => new Date(m.created_at).toLocaleString([], { hour12: true }) }, { label: 'Entered by', value: 'user_name' }, { label: 'CID', value: 'customer_code' }, { label: 'Customer', value: 'customer_name' },
     { label: 'Type', value: (m) => ({ delivered: 'Delivered', collected: 'Picked up', adjust: 'Adjustment' }[m.type]) }, { label: 'Pallets', value: (m) => Math.abs(m.qty) },
     { label: 'Balance effect', value: 'delta' }, { label: 'Note', value: 'note' },
     { label: 'Cancelled', value: (m) => m.voided_at ? `Yes: ${m.void_reason}` : '' }], rows);
@@ -843,10 +843,10 @@ async function pageReports() {
       const { rows } = await api('GET', '/api/admin/reports/activity?' + qs);
       const tot = (k) => rows.reduce((a, r) => a + r[k], 0);
       out.innerHTML = `<h2>Pallet balances by customer</h2><p class="muted">${period}. Positive = pallets the customer owes you.</p>
-        <div class="table-wrap"><table><thead><tr><th>Code</th><th>Customer</th><th class="num">Opening</th><th class="num">Delivered</th><th class="num">Picked up</th><th class="num">Adjustments</th><th class="num">Closing balance</th></tr></thead>
+        <div class="table-wrap"><table><thead><tr><th>CID</th><th>Customer</th><th class="num">Opening</th><th class="num">Delivered</th><th class="num">Picked up</th><th class="num">Adjustments</th><th class="num">Closing balance</th></tr></thead>
         <tbody>${rows.map((r) => `<tr><td>${esc(r.code)}</td><td>${esc(r.name)}</td><td class="num">${fmt(r.opening)}</td><td class="num">${fmt(r.delivered)}</td><td class="num">${fmt(r.collected)}</td><td class="num">${r.adjusted ? signed(r.adjusted) : ''}</td>${balCell(r.closing)}</tr>`).join('') || '<tr><td colspan="7" class="muted">No activity.</td></tr>'}</tbody>
         <tfoot><tr><td></td><td>Total</td><td class="num">${fmt(tot('opening'))}</td><td class="num">${fmt(tot('delivered'))}</td><td class="num">${fmt(tot('collected'))}</td><td class="num">${signed(tot('adjusted'))}</td>${balCell(tot('closing'))}</tr></tfoot></table></div>`;
-      csv = () => downloadCSV(`pallet-balances_${f.from}_${f.to}.csv`, [{ label: 'Code', value: 'code' }, { label: 'Customer', value: 'name' }, { label: 'Opening', value: 'opening' },
+      csv = () => downloadCSV(`pallet-balances_${f.from}_${f.to}.csv`, [{ label: 'CID', value: 'code' }, { label: 'Customer', value: 'name' }, { label: 'Opening', value: 'opening' },
         { label: 'Delivered', value: 'delivered' }, { label: 'Picked up', value: 'collected' }, { label: 'Adjustments', value: 'adjusted' }, { label: 'Closing balance', value: 'closing' }], rows);
     } else if (type === 'outstanding') {
       // Customers whose balance is not zero at the end of the To date, highest owed first
@@ -857,16 +857,16 @@ async function pageReports() {
       const owe = rows.filter((r) => r.closing < 0).reduce((a, r) => a - r.closing, 0);
       out.innerHTML = `<h2>Outstanding pallet balances${f.tx_only ? ' (TX customers)' : ''}</h2>
         <p class="muted">As at ${asAt}. ${fmt(rows.length)} customers. Positive = pallets the customer owes you; negative = pallets you owe them.</p>
-        <div class="table-wrap"><table><thead><tr><th>Code</th><th>Customer</th><th>Phone</th><th class="num">Outstanding</th></tr></thead>
+        <div class="table-wrap"><table><thead><tr><th>CID</th><th>Customer</th><th>Phone</th><th class="num">Outstanding</th></tr></thead>
         <tbody>${rows.map((r) => `<tr><td>${esc(r.code)}</td><td>${esc(r.name)}${r.tx ? ' <span class="pill tx">TX</span>' : ''}</td><td class="small">${esc(r.phone)}</td>${balCell(r.closing)}</tr>`).join('') || '<tr><td colspan="4" class="muted">No outstanding balances.</td></tr>'}</tbody>
         <tfoot><tr><td></td><td>Owed to you</td><td></td>${balCell(owed)}</tr>${owe ? `<tr><td></td><td>You owe customers</td><td></td>${balCell(-owe)}</tr><tr><td></td><td>Net</td><td></td>${balCell(owed - owe)}</tr>` : ''}</tfoot></table></div>`;
-      csv = () => downloadCSV(`outstanding-balances_${f.to || 'today'}.csv`, [{ label: 'Code', value: 'code' }, { label: 'Customer', value: 'name' },
+      csv = () => downloadCSV(`outstanding-balances_${f.to || 'today'}.csv`, [{ label: 'CID', value: 'code' }, { label: 'Customer', value: 'name' },
         { label: 'TX customer', value: (r) => r.tx ? 'Yes' : '' }, { label: 'Phone', value: 'phone' }, { label: 'Outstanding', value: 'closing' }], rows);
     } else if (type === 'statement') {
       if (!f.customer_id) { out.innerHTML = '<p class="muted">Choose a customer to see their statement.</p>'; csv = null; return; }
       const s = await api('GET', `/api/admin/reports/statement?customer_id=${f.customer_id}&` + qs);
       const c = s.customer;
-      out.innerHTML = `<h2>Pallet statement: ${esc(c.name)}</h2><p class="muted">Code ${esc(c.code)}${c.address ? ' · ' + esc(c.address) : ''}<br>${period}</p>
+      out.innerHTML = `<h2>Pallet statement: ${esc(c.name)}</h2><p class="muted">CID ${esc(c.code)}${c.address ? ' · ' + esc(c.address) : ''}<br>${period}</p>
         <div class="table-wrap"><table><thead><tr><th>Date</th><th>Details</th><th>Reference</th><th class="num">Delivered</th><th class="num">Picked up</th><th class="num">Balance</th></tr></thead>
         <tbody><tr><td></td><td><b>Opening balance</b></td><td></td><td></td><td></td>${balCell(s.opening)}</tr>
         ${s.lines.map((l) => `<tr><td class="small">${dt(l.created_at)}</td><td>${l.type === 'adjust' ? 'Adjustment: ' + esc(l.note) : esc(l.note)}</td><td>${esc(l.reference)}</td>

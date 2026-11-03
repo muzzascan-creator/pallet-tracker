@@ -22,7 +22,7 @@ Settings (env vars): `PORT`, `DATA_DIR`, `ADMIN_PASSWORD` (first run only), `ADM
 
 Browsers only allow the camera on **https** pages (or `localhost`). Host the app behind https
 (any host with a persistent disk, or a tunnel such as Cloudflare Tunnel for testing).
-If scanning isn't possible, operators can type a code or search by name.
+If scanning isn't possible, operators can type a CID or search by name.
 
 ## Handheld barcode scanner
 
@@ -47,9 +47,15 @@ so history stays auditable. Only admins can cancel entries.
 ## Master file import
 
 Customers → Import master file accepts .xlsx, .xls or .csv with a heading row. Columns are matched
-by heading (code/barcode, name, address, phone, email, notes, opening balance) and can be changed
-before importing. Existing codes are updated, new codes are added, nothing is deleted.
-`sample-master-file.csv` shows the layout. The **code** column must match what the barcode contains;
+by heading (CID/barcode, name, address, phone, email, notes, opening balance) and can be changed
+before importing; older files with a "Code" heading still work. Existing CIDs are updated, new CIDs
+are added, nothing is deleted. `sample-master-file.csv` shows the layout.
+
+The **CID** (customer ID) column must match what the barcode contains, and each customer needs its
+own CID. Adding or editing a customer with a CID that's already used is refused, and an import skips
+any row whose CID is used by another customer or appears more than once in the file. CIDs that
+differ only in upper/lower case or leading zeros (1034 and 001034) count as the same, because the
+scanner treats them as the same customer;
 Customers → Print barcode labels prints Code 128 labels if customers don't have barcodes yet.
 
 ## Files

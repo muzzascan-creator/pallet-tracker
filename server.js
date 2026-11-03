@@ -159,12 +159,12 @@ route('POST', '/api/me/password', async (req, res, { user }) => {
 // --- operator + admin ---
 route('GET', '/api/lookup', (req, res, { query }) => {
   const code = str(query.get('code'));
-  if (!code) throw bad('No code');
+  if (!code) throw bad('No CID');
   // Exact match first; then ignore leading zeros, since barcodes often pad numbers (e.g. 0001034 for 1034).
   const c = db.prepare('SELECT id FROM customers WHERE code = ?').get(code)
     || db.prepare('SELECT id FROM customers WHERE upper(trim(code)) = upper(?)').get(code)
     || (/^\d+$/.test(code) ? db.prepare(`SELECT id FROM customers WHERE ltrim(code, '0') = ltrim(?, '0')`).get(code) : null);
-  if (!c) throw new HttpError(404, `No customer found for code "${code}"`);
+  if (!c) throw new HttpError(404, `No customer found for CID "${code}"`);
   send(res, 200, { customer: customerWithBalance(c.id), recent: recentMovements(c.id, 5) });
 });
 
@@ -240,15 +240,33 @@ route('GET', '/api/admin/summary', { auth: 'admin' }, (req, res, { query }) => {
 // --- admin: customers ---
 function customerFields(b) {
   const f = { code: str(b.code, 100), name: str(b.name, 200), address: str(b.address, 300), phone: str(b.phone, 50), email: str(b.email, 200), notes: str(b.notes, 500) };
-  if (!f.code) throw bad('Customer code (barcode) is required');
+  if (!f.code) throw bad('CID (barcode) is required');
   if (!f.name) throw bad('Customer name is required');
   return f;
+}
+
+// A CID must be unique across all customers. Two CIDs count as the same if they differ only in
+// upper/lower case or, for all-digit CIDs, in leading zeros, because the scanner lookup treats
+// those as one customer (a barcode of 0001034 finds 1034).
+const cidKey = (code) => {
+  const s = String(code).trim().toUpperCase();
+  return /^\d+$/.test(s) ? s.replace(/^0+(?=\d)/, '') : s;
+};
+function cidOwners() {
+  const map = new Map();
+  for (const c of db.prepare('SELECT id, code, name FROM customers').all()) map.set(cidKey(c.code), c);
+  return map;
+}
+const cidTaken = (f, other) => bad(`CID "${f.code}" is already used by ${other.name}${cidKey(other.code) === cidKey(f.code) && other.code.toUpperCase() !== f.code.toUpperCase() ? ` (CID "${other.code}")` : ''}. Each customer needs its own CID.`);
+function assertCidFree(f, exceptId) {
+  const other = db.prepare('SELECT id, code, name FROM customers WHERE id <> ?').all(exceptId || 0).find((c) => cidKey(c.code) === cidKey(f.code));
+  if (other) throw cidTaken(f, other);
 }
 
 route('POST', '/api/admin/customers', { auth: 'admin' }, async (req, res, { user }) => {
   const b = await readJson(req);
   const f = customerFields(b);
-  if (db.prepare('SELECT 1 FROM customers WHERE code = ?').get(f.code)) throw bad(`Code "${f.code}" is already used`);
+  assertCidFree(f);
   const opening = int(b.opening_balance, { min: -MAX_QTY, name: 'Opening balance' });
   const id = transaction(() => {
     const id = Number(db.prepare(`INSERT INTO customers (code, name, address, phone, email, notes, tx) VALUES (?, ?, ?, ?, ?, ?, ?)`)
@@ -264,23 +282,31 @@ route('PUT', '/api/admin/customers/:id', { auth: 'admin' }, async (req, res, { p
   const id = Number(params.id);
   if (!db.prepare('SELECT 1 FROM customers WHERE id = ?').get(id)) throw new HttpError(404, 'Customer not found');
   const f = customerFields(b);
-  if (db.prepare('SELECT 1 FROM customers WHERE code = ? AND id <> ?').get(f.code, id)) throw bad(`Code "${f.code}" is already used`);
+  assertCidFree(f, id);
   db.prepare(`UPDATE customers SET code=?, name=?, address=?, phone=?, email=?, notes=?, active=?, tx=? WHERE id=?`)
     .run(f.code, f.name, f.address, f.phone, f.email, f.notes, b.active === false ? 0 : 1, b.tx === true ? 1 : 0, id);
   send(res, 200, { customer: customerWithBalance(id) });
 });
 
 // Import / update the master file. rows: [{code, name, address?, phone?, email?, notes?, opening_balance?}]
-// Existing codes are updated; opening balance is only applied to newly created customers.
+// Existing CIDs are updated; opening balance is only applied to newly created customers.
+// A CID that appears on more than one row of the file is not imported at all, so neither row
+// silently wins. The file's CID column may be headed "CID" or "Code" (older files).
 route('POST', '/api/admin/customers/import', { auth: 'admin' }, async (req, res, { user }) => {
   const { rows } = await readJson(req);
   if (!Array.isArray(rows) || !rows.length) throw bad('No rows to import');
   let created = 0, updated = 0; const errors = [];
+  const fileRows = new Map(); // CID key -> spreadsheet row numbers
+  rows.forEach((r, i) => { const code = str(r && (r.code ?? r.cid), 100); if (code) fileRows.set(cidKey(code), [...(fileRows.get(cidKey(code)) || []), i + 2]); });
   transaction(() => {
+    const owners = cidOwners();
     rows.forEach((r, i) => {
       try {
-        const f = customerFields(r);
-        const existing = db.prepare('SELECT id FROM customers WHERE code = ?').get(f.code);
+        const f = customerFields({ ...r, code: r.code ?? r.cid });
+        const inFile = fileRows.get(cidKey(f.code));
+        if (inFile.length > 1) throw bad(`CID "${f.code}" appears on more than one row (rows ${inFile.join(', ')}). Each customer needs its own CID; none of these rows were imported.`);
+        const existing = owners.get(cidKey(f.code));
+        if (existing && existing.code.toUpperCase() !== f.code.toUpperCase()) throw cidTaken(f, existing);
         if (existing) {
           db.prepare(`UPDATE customers SET name=?, address=COALESCE(NULLIF(?,''),address), phone=COALESCE(NULLIF(?,''),phone),
                       email=COALESCE(NULLIF(?,''),email), notes=COALESCE(NULLIF(?,''),notes) WHERE id=?`)
@@ -290,6 +316,7 @@ route('POST', '/api/admin/customers/import', { auth: 'admin' }, async (req, res,
           const opening = int(r.opening_balance, { min: -MAX_QTY, name: 'Opening balance' });
           const id = Number(db.prepare(`INSERT INTO customers (code, name, address, phone, email, notes) VALUES (?, ?, ?, ?, ?, ?)`)
             .run(f.code, f.name, f.address, f.phone, f.email, f.notes).lastInsertRowid);
+          owners.set(cidKey(f.code), { id, code: f.code, name: f.name });
           if (opening) db.prepare(`INSERT INTO movements (customer_id, type, qty, delta, note, user_id) VALUES (?, 'adjust', ?, ?, 'Opening balance', ?)`).run(id, opening, opening, user.id);
           created++;
         }
@@ -495,4 +522,11 @@ if (applyAdminReset()) console.log('Admin password reset from ADMIN_RESET_PASSWO
 server.listen(PORT, () => {
   console.log(`Pallet tracker running on http://localhost:${PORT}`);
   if (firstPassword) console.log(`First run: created login "admin" with password "${firstPassword}" (you will be asked to change it).`);
+  // Customers saved before CIDs had to be unique may share a CID that differs only in leading zeros.
+  const seen = new Map();
+  for (const c of db.prepare('SELECT id, code, name FROM customers ORDER BY id').all()) {
+    const prev = seen.get(cidKey(c.code));
+    if (prev) console.warn(`Duplicate CID: "${prev.code}" (${prev.name}) and "${c.code}" (${c.name}). Give one of them a different CID.`);
+    else seen.set(cidKey(c.code), c);
+  }
 });
