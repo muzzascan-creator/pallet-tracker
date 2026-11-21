@@ -22,7 +22,7 @@ Settings (env vars): `PORT`, `DATA_DIR`, `ADMIN_PASSWORD` (first run only), `ADM
 
 Browsers only allow the camera on **https** pages (or `localhost`). Host the app behind https
 (any host with a persistent disk, or a tunnel such as Cloudflare Tunnel for testing).
-If scanning isn't possible, operators can type a CID or search by name.
+Operators (drivers) can only pick a customer by scanning their barcode, with the camera or a handheld scanner; they cannot type a CID or search by name. Admins can still type a CID or name on the Scan screen.
 
 ## Handheld barcode scanner
 
