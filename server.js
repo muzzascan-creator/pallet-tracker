@@ -1,6 +1,6 @@
 // Pallet tracking server. Plain Node (22.13+), no npm packages required.
 //   node server.js            -> http://localhost:3000
-// Env: PORT, DATA_DIR, ADMIN_PASSWORD (first run only)
+// Env: PORT, DATA_DIR, ADMIN_PASSWORD (first run only), FEED_KEY (the Speed Screen's delivery feed)
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -471,6 +471,24 @@ route('DELETE', '/api/admin/recons/:id', { auth: 'admin' }, (req, res, { params 
   if (r.period_from !== businessToday()) throw bad('Only today\'s sheet can be deleted. Older sheets are permanent.');
   db.prepare('DELETE FROM reconciliations WHERE id = ?').run(Number(params.id));
   send(res, 200, { ok: true });
+});
+
+// Deliveries for the PMSSC Speed Screen (Mario, 22 Nov 2026): every scan that delivered pallets in
+// the last few days, so the Speed Screen's Orders tab can show who delivered each order and when.
+// Read only, for one caller holding FEED_KEY (sent as "Authorization: Bearer <key>"); without
+// FEED_KEY set the feed is switched off. Cancelled scans are included, marked, so the Speed
+// Screen can take them back off.
+route('GET', '/api/feed/deliveries', { auth: 'none' }, (req, res, { query }) => {
+  const key = process.env.FEED_KEY || '';
+  const given = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const same = key.length >= 16 && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key));
+  if (!same) throw new HttpError(404, 'Not found');
+  const days = Math.min(Math.max(Number(query.get('days')) || 3, 1), 14);
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  const rows = db.prepare(`SELECT m.id, c.code AS cid, u.name AS driver, m.qty, m.created_at, m.voided_at
+    FROM movements m JOIN customers c ON c.id = m.customer_id JOIN users u ON u.id = m.user_id
+    WHERE m.type = 'delivered' AND m.qty > 0 AND m.created_at >= ? ORDER BY m.id`).all(since);
+  send(res, 200, { deliveries: rows.map((r) => ({ id: r.id, cid: r.cid, driver: r.driver, pallets: r.qty, at: r.created_at, cancelled: !!r.voided_at })) });
 });
 
 // ---------- static files ----------
