@@ -185,9 +185,6 @@ function pageScan(customer) {
         <p class="small muted" style="text-align:center;margin:6px 0 0">Hold the barcode flat, about a hand's width from the camera. Blurry? Tap Switch camera.</p></div>
       <button id="scan-start" class="btn primary big">📷 Scan barcode</button>
       <div id="scan-msg" class="err"></div>
-      ${canTypeCustomer() ? `<div class="or">or type a CID or name</div>
-      <form id="manual" class="row"><div><input id="q" placeholder="CID or name" autocomplete="off" autocapitalize="none"></div>
-        <button class="btn grow-0">Search</button></form>` : ''}
       <ul id="results" class="results"></ul>
     </div>
     <div id="cust"></div>`;
@@ -195,18 +192,6 @@ function pageScan(customer) {
   $('#scan-switch').onclick = switchCamera;
   $('#scan-stop').onclick = () => { stopScanner(); $('#scan-box').hidden = true; $('#scan-start').hidden = false; };
   if (customer) showCustomer(customer.customer, customer.recent);
-  if (!canTypeCustomer()) return; // drivers can only scan the customer's barcode
-  $('#manual').onsubmit = async (e) => {
-    e.preventDefault();
-    const q = $('#q').value.trim(); if (!q) return;
-    $('#cust').innerHTML = '';
-    try { return await lookupCode(q, true); } catch {}
-    const { customers } = await api('GET', '/api/customers?q=' + encodeURIComponent(q));
-    $('#results').innerHTML = customers.length ? customers.slice(0, 20).map((c) =>
-      `<li data-id="${c.id}"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}">${fmt(c.balance)}</span></li>`).join('')
-      : '<li class="muted">No customers match</li>';
-    $$('#results li[data-id]').forEach((li) => li.onclick = () => loadCustomer(li.dataset.id));
-  };
 }
 
 // ---------- scan screen for handheld scanner users (Users > Device = Scanner) ----------
@@ -216,9 +201,8 @@ function pageScan(customer) {
 // hidden or rebuilt while a customer is open, and taps on buttons don't take focus from it.
 // No camera code runs here.
 const isScannerUser = () => !!me && me.device === 'scanner';
-// Drivers (operators) must scan the customer's barcode: they can't type or pick a CID or name.
-// Admins can still search by CID or name on the Scan screen.
-const canTypeCustomer = () => !!me && me.role === 'admin';
+// On the Scan screen a customer can only be picked by scanning their barcode: nobody can type
+// or search a CID or name there (admins find customers on the Customers page).
 function pageScanHw() {
   view.innerHTML = `
     <div id="find" class="card">
@@ -226,7 +210,7 @@ function pageScanHw() {
       <p class="hw-help" id="hw-help">Tap the box once, then press the scanner trigger</p>
       <div id="scan-msg" class="err"></div>
       <form id="manual" class="row"><div><input id="q" placeholder="Tap, then scan" autocomplete="off" autocapitalize="none" inputmode="none"></div>
-        ${canTypeCustomer() ? '<button type="button" class="btn grow-0" id="kb" title="Keyboard">⌨</button><button class="btn grow-0">Search</button>' : '<button hidden></button>'}</form>
+        <button hidden></button></form>
       <ul id="results" class="results"></ul>
     </div>
     <div id="cust"></div>`;
@@ -236,8 +220,7 @@ function pageScanHw() {
   // The scanner must be set to keyboard (keystroke) output with an Enter suffix (see README): then
   // it types like a hardware keyboard, so the on-screen keyboard is kept off (inputmode=none) and
   // Enter submits. In its "input method" mode it only types while the on-screen keyboard is open.
-  // ⌨ (admins only) brings the keyboard back to type a name. A whole code landing at once also searches.
-  if ($('#kb')) $('#kb').onclick = () => { q.inputMode = 'text'; q.blur(); q.focus(); };
+  // A whole code landing at once also searches.
   q.addEventListener('input', (e) => {
     const len = q.value.length, jump = len - qLen; qLen = len;
     if (!/^insert/.test(e.inputType || 'insert') || jump < 3) return;
@@ -257,12 +240,6 @@ function pageScanHw() {
       if (parked) return;
       $('#scan-msg').textContent = err.message; // shows exactly what the scanner sent
     }
-    if (!canTypeCustomer()) return; // drivers: a scan must match a CID, no name search
-    const { customers } = await api('GET', '/api/customers?q=' + encodeURIComponent(text));
-    $('#results').innerHTML = customers.length ? customers.slice(0, 20).map((c) =>
-      `<li data-id="${c.id}"><span><b>${esc(c.name)}</b><br><span class="small muted">${esc(c.code)}</span></span><span class="bal ${balCls(c.balance)}">${fmt(c.balance)}</span></li>`).join('')
-      : '<li class="muted">No customers match</li>';
-    $$('#results li[data-id]').forEach((li) => li.onclick = () => loadCustomer(li.dataset.id));
   };
 }
 // Keep the scanner box focused when a button is tapped (the tap itself still works)
@@ -286,7 +263,7 @@ let backCams = null, camIdx = -1;
 
 async function startScanner() {
   const msg = $('#scan-msg'); msg.textContent = '';
-  const noCam = canTypeCustomer() ? 'Type the code instead.' : 'Reload the page and try again.';
+  const noCam = 'Reload the page and try again.';
   if (!window.isSecureContext) { msg.textContent = 'The camera only works over https (or on localhost). ' + noCam; return; }
   if (!window.Html5Qrcode) { msg.textContent = 'Scanner did not load. ' + noCam; return; }
   await stopScanner();
